@@ -115,6 +115,19 @@ export default function DashboardPage() {
                         </div>
                     </GlassCard>
 
+                    {/* News Section */}
+                    <GlassCard className="p-6">
+                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <span className="text-yellow-400">📰</span> Market Context
+                        </h2>
+                        <div className="text-xs text-gray-400 space-y-2">
+                            <p>• <span className="text-white">USD</span>: Fed hints rate cuts.</p>
+                            <p>• <span className="text-white">EUR</span>: ECB hawkish stance.</p>
+                            <p>• <span className="text-white">BTC</span>: ETF inflows record high.</p>
+                            <p>• <span className="text-white">GOLD</span>: Safe-haven demand up.</p>
+                        </div>
+                    </GlassCard>
+
                     {/* Upload Section */}
                     <GlassCard className="p-6">
                         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
