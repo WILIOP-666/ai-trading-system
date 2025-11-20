@@ -1,4 +1,3 @@
-// Updated: 2025-11-21 01:09 - Fixed react-markdown dependency
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -7,12 +6,14 @@ import {
     Brain, X, ChevronDown, Sparkles, Paperclip, Globe,
     LayoutDashboard, Newspaper, BarChart2, LogOut, User, Menu
 } from 'lucide-react';
-import { createClientComponentClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import Link from 'next/link';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
+
+// Supabase
+import { createClient } from '@/lib/supabase';
 
 // Components
 import { TradingSignalCard } from '@/components/ui/TradingSignalCard';
@@ -57,7 +58,7 @@ export default function DashboardPage() {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
-    const supabase = createClientComponentClient();
+    const supabase = createClient();
 
     // Initialize AOS & Fetch Models
     useEffect(() => {
@@ -82,10 +83,9 @@ export default function DashboardPage() {
                 if (data.data) {
                     const models = data.data.map((m: any) => ({ id: m.id, name: m.name }));
                     setAvailableModels(prev => {
-                        // Filter out duplicates
                         const existingIds = new Set(prev.map(p => p.id));
                         const newModels = models.filter((m: any) => !existingIds.has(m.id));
-                        return [...prev, ...newModels.slice(0, 20)]; // Limit to top 20 new ones
+                        return [...prev, ...newModels.slice(0, 20)];
                     });
                 }
             } catch (e) {
@@ -130,13 +130,12 @@ export default function DashboardPage() {
         setIsLoading(true);
 
         try {
-            // Save to Supabase History
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 await supabase.from('analysis_logs').insert({
                     user_id: user.id,
                     image_url: image ? 'base64_image' : null,
-                    analysis_result: input, // Storing prompt for now
+                    analysis_result: input,
                     model_used: selectedModel
                 });
             }
@@ -173,7 +172,6 @@ export default function DashboardPage() {
     return (
         <div className="flex min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-blue-500/30 overflow-hidden">
 
-            {/* SIDEBAR NAVIGATION */}
             <aside className="w-20 lg:w-64 bg-[#111]/80 backdrop-blur-xl border-r border-white/5 flex flex-col justify-between z-50 transition-all duration-300">
                 <div>
                     <div className="h-20 flex items-center justify-center lg:justify-start lg:px-6 border-b border-white/5">
@@ -216,10 +214,8 @@ export default function DashboardPage() {
                 </div>
             </aside>
 
-            {/* MAIN CONTENT */}
             <main className="flex-1 flex flex-col relative h-screen overflow-hidden">
 
-                {/* HEADER */}
                 <header className="h-16 border-b border-white/5 bg-[#0a0a0a]/50 backdrop-blur-md flex items-center justify-between px-6 z-40">
                     <div className="flex items-center space-x-4">
                         <div className="flex items-center bg-[#1a1a1a] rounded-full px-4 py-1.5 border border-white/10 hover:border-blue-500/50 transition-colors cursor-pointer" onClick={() => setShowSettings(true)}>
@@ -228,7 +224,6 @@ export default function DashboardPage() {
                             <ChevronDown className="w-3 h-3 text-gray-500 ml-2" />
                         </div>
 
-                        {/* DuckDuckGo Toggle */}
                         <button
                             onClick={() => setEnableNews(!enableNews)}
                             className={`flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${enableNews ? 'bg-green-500/20 border-green-500/50 text-green-400' : 'bg-[#1a1a1a] border-white/10 text-gray-400'}`}
@@ -245,7 +240,6 @@ export default function DashboardPage() {
                     </div>
                 </header>
 
-                {/* CHAT AREA */}
                 <div className="flex-1 overflow-y-auto p-4 lg:p-8 space-y-6 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
                     {messages.map((msg, idx) => (
                         <div
@@ -255,8 +249,8 @@ export default function DashboardPage() {
                             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                             <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-5 ${msg.role === 'user'
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                                : 'bg-[#1a1a1a] border border-white/5 text-gray-200 shadow-xl'
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                    : 'bg-[#1a1a1a] border border-white/5 text-gray-200 shadow-xl'
                                 }`}>
                                 {msg.image && (
                                     <img src={msg.image} alt="Analysis" className="max-w-full h-auto rounded-lg mb-4 border border-white/10" />
@@ -283,9 +277,7 @@ export default function DashboardPage() {
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* INPUT AREA */}
                 <div className="p-4 lg:p-6 bg-[#0a0a0a] border-t border-white/5 relative z-40">
-                    {/* Tech Analysis Quick Menu */}
                     {showTechMenu && (
                         <div className="absolute bottom-full left-6 mb-2 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl p-2 w-64 grid grid-cols-2 gap-2" data-aos="fade-up">
                             {['RSI Divergence', 'MACD Crossover', 'Fibonacci Levels', 'Elliott Wave', 'Bollinger Bands', 'Volume Profile'].map((tech) => (
@@ -304,7 +296,6 @@ export default function DashboardPage() {
                         <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur opacity-75 pointer-events-none"></div>
                         <div className="relative bg-[#111] rounded-2xl border border-white/10 flex flex-col shadow-2xl">
 
-                            {/* Toolbar */}
                             <div className="flex items-center justify-between px-4 py-2 border-b border-white/5">
                                 <div className="flex items-center space-x-2">
                                     <button
@@ -331,7 +322,6 @@ export default function DashboardPage() {
                                 </div>
                             </div>
 
-                            {/* Text Area */}
                             <div className="flex items-end p-2">
                                 <textarea
                                     value={input}
@@ -378,7 +368,6 @@ export default function DashboardPage() {
 
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
 
-            {/* SETTINGS MODAL */}
             {showSettings && (
                 <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" data-aos="zoom-in">
                     <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
@@ -393,7 +382,6 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
-                            {/* API Key */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-2">OpenRouter API Key</label>
                                 <input
@@ -406,7 +394,6 @@ export default function DashboardPage() {
                                 <p className="text-xs text-gray-500 mt-2">Key is stored locally in your browser.</p>
                             </div>
 
-                            {/* Model Selection */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-2">AI Model</label>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -415,8 +402,8 @@ export default function DashboardPage() {
                                             key={m.id}
                                             onClick={() => setSelectedModel(m.id)}
                                             className={`text-left px-4 py-3 rounded-xl border transition-all ${selectedModel === m.id
-                                                ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                                                : 'bg-[#0a0a0a] border-white/10 text-gray-300 hover:border-white/30'
+                                                    ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                                                    : 'bg-[#0a0a0a] border-white/10 text-gray-300 hover:border-white/30'
                                                 }`}
                                         >
                                             <div className="font-medium truncate">{m.name}</div>
@@ -426,7 +413,6 @@ export default function DashboardPage() {
                                 </div>
                             </div>
 
-                            {/* System Prompt */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-2">System Persona (Prompt)</label>
                                 <textarea
@@ -436,7 +422,6 @@ export default function DashboardPage() {
                                 />
                             </div>
 
-                            {/* Reasoning Effort */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-400 mb-2">Reasoning Effort</label>
                                 <div className="flex space-x-4 bg-[#0a0a0a] p-1 rounded-xl border border-white/10">
@@ -445,8 +430,8 @@ export default function DashboardPage() {
                                             key={level}
                                             onClick={() => setReasoningEffort(level as any)}
                                             className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all ${reasoningEffort === level
-                                                ? 'bg-blue-600 text-white shadow-lg'
-                                                : 'text-gray-400 hover:text-white'
+                                                    ? 'bg-blue-600 text-white shadow-lg'
+                                                    : 'text-gray-400 hover:text-white'
                                                 }`}
                                         >
                                             {level}
