@@ -381,137 +381,100 @@ export default function DashboardPage() {
                                         <span className="text-lg">💰</span>
                                         <span>Risk Calculator</span>
                                     </button>
-                                </GlassCard>
-                            </div>
-
-                            {/* Chat Area */}
-                            <GlassCard className="flex-1 flex flex-col overflow-hidden relative">
-                                {/* Messages */}
-                                <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                                    {messages.map((msg, idx) => (
-                                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                            <div className={`max-w-[85%] rounded-2xl p-4 ${msg.role === 'user'
-                                                    ? 'bg-emerald-600/20 border border-emerald-500/30 text-white'
-                                                    : 'bg-white/5 border border-white/10 text-gray-200'
-                                                }`}>
-                                                {msg.image && (
-                                                    <img src={msg.image} alt="Uploaded chart" className="max-w-full rounded-lg mb-3 border border-white/10" />
-                                                )}
-                                                <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">
-                                                    {msg.content}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {loading && (
-                                        <div className="flex justify-start">
-                                            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
-                                                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" />
-                                                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce delay-100" />
-                                                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce delay-200" />
-                                            </div>
-                                        </div>
-                                    )}
-                                    <div ref={messagesEndRef} />
-                                </div>
-
-                                {/* Input Area */}
-                                <div className="p-4 border-t border-white/10 bg-black/20">
-                                    {preview && (
-                                        <div className="mb-2 relative inline-block">
-                                            <img src={preview} alt="Preview" className="h-16 rounded border border-white/20" />
-                                            <button
-                                                onClick={() => { setImage(null); setPreview(null); }}
-                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5"
-                                            >
-                                                ×
-                                            </button>
-                                        </div>
-                                    )}
-                                    <div className="flex gap-3">
-                                        <label className="cursor-pointer p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-emerald-400 transition-colors">
-                                            <Paperclip size={20} />
-                                            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                            placeholder="Ask about the market or upload a chart..."
-                                            className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 text-white focus:border-emerald-500 outline-none"
-                                        />
-                                        <button
-                                            onClick={handleSendMessage}
-                                            disabled={loading || (!input && !image)}
-                                            className="p-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            <Send size={20} />
-                                        </button>
-                                    </div>
-                                </div>
-                            </GlassCard>
-                        </div>
-
-                        {/* Risk Calculator Modal */}
-                        {showCalculator && (
-                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                                <GlassCard className="w-full max-w-sm p-6 relative">
                                     <button
-                                        onClick={() => setShowCalculator(false)}
-                                        className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                                        onClick={() => { setImage(null); setPreview(null); }}
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5"
                                     >
                                         ×
                                     </button>
-                                    <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                                        💰 Risk Calculator
-                                    </h3>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="text-xs text-gray-400">Account Balance ($)</label>
-                                            <input
-                                                type="number"
-                                                value={calcBalance}
-                                                onChange={(e) => setCalcBalance(Number(e.target.value))}
-                                                className="w-full bg-black/30 border border-white/10 rounded p-2 text-white"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-gray-400">Risk Percentage (%)</label>
-                                            <input
-                                                type="number"
-                                                value={calcRisk}
-                                                onChange={(e) => setCalcRisk(Number(e.target.value))}
-                                                className="w-full bg-black/30 border border-white/10 rounded p-2 text-white"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs text-gray-400">Stop Loss (Pips)</label>
-                                            <input
-                                                type="number"
-                                                value={calcSL}
-                                                onChange={(e) => setCalcSL(Number(e.target.value))}
-                                                className="w-full bg-black/30 border border-white/10 rounded p-2 text-white"
-                                            />
-                                        </div>
+                            </div>
+                                    )}
+                            <div className="flex gap-3">
+                                <label className="cursor-pointer p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-emerald-400 transition-colors">
+                                    <Paperclip size={20} />
+                                    <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                                </label>
+                                <input
+                                    type="text"
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                    placeholder="Ask about the market or upload a chart..."
+                                    className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 text-white focus:border-emerald-500 outline-none"
+                                />
+                                <button
+                                    onClick={handleSendMessage}
+                                    disabled={loading || (!input && !image)}
+                                    className="p-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <Send size={20} />
+                                </button>
+                            </div>
+                        </div>
+                    </GlassCard>
+                        </div >
 
-                                        <button
-                                            onClick={calculateLot}
-                                            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded transition-colors"
-                                        >
-                                            Calculate
-                                        </button>
+        {/* Risk Calculator Modal */ }
+    {
+        showCalculator && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <GlassCard className="w-full max-w-sm p-6 relative">
+                    <button
+                        onClick={() => setShowCalculator(false)}
+                        className="absolute top-4 right-4 text-gray-400 hover:text-white"
+                    >
+                        ×
+                    </button>
+                    <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                        💰 Risk Calculator
+                    </h3>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-xs text-gray-400">Account Balance ($)</label>
+                            <input
+                                type="number"
+                                value={calcBalance}
+                                onChange={(e) => setCalcBalance(Number(e.target.value))}
+                                className="w-full bg-black/30 border border-white/10 rounded p-2 text-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-400">Risk Percentage (%)</label>
+                            <input
+                                type="number"
+                                value={calcRisk}
+                                onChange={(e) => setCalcRisk(Number(e.target.value))}
+                                className="w-full bg-black/30 border border-white/10 rounded p-2 text-white"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-xs text-gray-400">Stop Loss (Pips)</label>
+                            <input
+                                type="number"
+                                value={calcSL}
+                                onChange={(e) => setCalcSL(Number(e.target.value))}
+                                className="w-full bg-black/30 border border-white/10 rounded p-2 text-white"
+                            />
+                        </div>
 
-                                        {calcResult && (
-                                            <div className="mt-4 p-3 bg-emerald-500/20 border border-emerald-500/50 rounded text-center">
-                                                <p className="text-xs text-emerald-300 uppercase font-bold">Recommended Position</p>
-                                                <p className="text-xl font-bold text-white">{calcResult}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </GlassCard>
+                        <button
+                            onClick={calculateLot}
+                            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded transition-colors"
+                        >
+                            Calculate
+                        </button>
+
+                        {calcResult && (
+                            <div className="mt-4 p-3 bg-emerald-500/20 border border-emerald-500/50 rounded text-center">
+                                <p className="text-xs text-emerald-300 uppercase font-bold">Recommended Position</p>
+                                <p className="text-xl font-bold text-white">{calcResult}</p>
                             </div>
                         )}
                     </div>
+                </GlassCard>
+            </div>
+        )
+    }
+                    </div >
                 );
-            }
+}
