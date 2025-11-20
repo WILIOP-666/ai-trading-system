@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { GlassCard } from '@/components/ui/GlassCard';
-import { Upload, Key, Play, LogOut } from 'lucide-react';
+import { Upload, Key, Play, LogOut, History } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
@@ -12,17 +12,32 @@ export default function DashboardPage() {
     const [preview, setPreview] = useState<string | null>(null);
     const [analysis, setAnalysis] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [history, setHistory] = useState<any[]>([]);
 
     const router = useRouter();
     const supabase = createClient();
 
     useEffect(() => {
-        // Check auth
-        const checkUser = async () => {
+        const initDashboard = async () => {
+            // Check auth
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) router.push('/login');
+            if (!user) {
+                router.push('/login');
+                return;
+            }
+
+            // Load history
+            const { data: logs } = await supabase
+                .from('analysis_logs')
+                .select('*')
+                .eq('user_id', user.id)
+                .order('created_at', { ascending: false })
+                .limit(5);
+
+            if (logs) setHistory(logs);
         };
-        checkUser();
+
+        initDashboard();
 
         // Load saved API key
         const savedKey = localStorage.getItem('openrouter_key');
@@ -66,7 +81,23 @@ export default function DashboardPage() {
 
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
+
                 setAnalysis(data.result);
+
+                // Save to Database (Real History)
+                const { data: { user } } = await supabase.auth.getUser();
+                if (user) {
+                    const { data: newLog } = await supabase.from('analysis_logs').insert({
+                        user_id: user.id,
+                        pair_name: 'Unknown', // Placeholder for now
+                        signal: data.result.includes('BUY') ? 'BUY' : data.result.includes('SELL') ? 'SELL' : 'WAIT',
+                        analysis_result: data.result
+                    }).select().single();
+
+                    if (newLog) {
+                        setHistory(prev => [newLog, ...prev].slice(0, 5));
+                    }
+                }
             };
         } catch (err: any) {
             alert('Analysis failed: ' + err.message);
@@ -165,8 +196,8 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Right Column: Analysis Results */}
-                <div className="lg:col-span-2">
-                    <GlassCard className="h-full min-h-[500px] p-8">
+                <div className="lg:col-span-2 space-y-6">
+                    <GlassCard className="min-h-[400px] p-8">
                         <h2 className="text-xl font-bold mb-6 border-b border-white/10 pb-4">AI Analysis Result</h2>
 
                         {analysis ? (
@@ -176,11 +207,40 @@ export default function DashboardPage() {
                                 </div>
                             </div>
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50">
+                            <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50 py-20">
                                 <div className="w-16 h-16 border-4 border-white/10 border-t-emerald-500 rounded-full animate-spin mb-4" style={{ animationDuration: '3s' }}></div>
                                 <p>Waiting for chart data...</p>
                             </div>
                         )}
+                    </GlassCard>
+
+                    {/* History Section */}
+                    <GlassCard className="p-6">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                            <History className="text-purple-400" size={20} /> Recent Analysis
+                        </h3>
+                        <div className="space-y-3">
+                            {history.length === 0 ? (
+                                <p className="text-gray-500 text-sm">No history found.</p>
+                            ) : (
+                                history.map((log) => (
+                                    <div key={log.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg">
+                                        <div>
+                                            <span className={`text-xs font-bold px-2 py-1 rounded ${log.signal === 'BUY' ? 'bg-green-500/20 text-green-400' :
+                                                    log.signal === 'SELL' ? 'bg-red-500/20 text-red-400' :
+                                                        'bg-gray-500/20 text-gray-400'
+                                                }`}>
+                                                {log.signal}
+                                            </span>
+                                            <span className="text-gray-400 text-xs ml-2">
+                                                {new Date(log.created_at).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                        <button className="text-xs text-blue-400 hover:text-blue-300">View</button>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </GlassCard>
                 </div>
             </div>
