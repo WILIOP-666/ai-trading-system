@@ -1,53 +1,62 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GlassCard } from '@/components/ui/GlassCard';
-import { Upload, Key, Play, LogOut, History } from 'lucide-react';
+import { Upload, Key, Send, LogOut, History, Settings, Globe, Paperclip, Bot } from 'lucide-react';
 import { createClient } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
+// Available Models
+const AI_MODELS = [
+    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)' },
+    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
+    { id: 'openai/gpt-4o', name: 'GPT-4o' },
+    { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B' },
+];
+
+type Message = {
+    role: 'user' | 'assistant';
+    content: string;
+    image?: string;
+};
+
 export default function DashboardPage() {
     const [apiKey, setApiKey] = useState('');
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [input, setInput] = useState('');
     const [image, setImage] = useState<File | null>(null);
     const [preview, setPreview] = useState<string | null>(null);
-    const [analysis, setAnalysis] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
-    const [history, setHistory] = useState<any[]>([]);
 
+    // Settings
+    const [selectedModel, setSelectedModel] = useState(AI_MODELS[0].id);
+    const [enableNews, setEnableNews] = useState(true);
+    const [showSettings, setShowSettings] = useState(false);
+
+    const messagesEndRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
     const supabase = createClient();
 
     useEffect(() => {
-        const initDashboard = async () => {
-            // Check auth
+        const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                router.push('/login');
-                return;
-            }
-
-            // Load history
-            const { data: logs } = await supabase
-                .from('analysis_logs')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false })
-                .limit(5);
-
-            if (logs) setHistory(logs);
+            if (!user) router.push('/login');
         };
+        checkUser();
 
-        initDashboard();
-
-        // Load saved API key
         const savedKey = localStorage.getItem('openrouter_key');
         if (savedKey) setApiKey(savedKey);
+
+        // Initial Welcome Message
+        setMessages([{
+            role: 'assistant',
+            content: 'Hello! I am your AI Trading Copilot. Upload a chart or ask me anything about the market. I can also search for real-time news if you enable it.'
+        }]);
     }, []);
 
-    const handleSaveKey = () => {
-        localStorage.setItem('openrouter_key', apiKey);
-        alert('API Key saved securely in your browser!');
-    };
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -57,50 +66,72 @@ export default function DashboardPage() {
         }
     };
 
-    const handleAnalyze = async () => {
-        if (!apiKey || !image) return alert('Please provide API Key and Image');
+    const handleSendMessage = async () => {
+        if ((!input.trim() && !image) || !apiKey) return alert('Please provide API Key and a message/image');
 
         setLoading(true);
-        setAnalysis(null);
+
+        // 1. Prepare User Message
+        let base64Image = null;
+        if (image) {
+            const reader = new FileReader();
+            base64Image = await new Promise((resolve) => {
+                reader.onload = (e) => resolve(e.target?.result);
+                reader.readAsDataURL(image);
+            });
+        }
+
+        const newUserMsg: Message = {
+            role: 'user',
+            content: input || (image ? "Analyze this chart" : ""),
+            image: preview || undefined
+        };
+
+        const newMessages = [...messages, newUserMsg];
+        setMessages(newMessages);
+        setInput('');
+        setImage(null);
+        setPreview(null);
 
         try {
-            // Convert image to base64
-            const reader = new FileReader();
-            reader.readAsDataURL(image);
-            reader.onload = async () => {
-                const base64Image = reader.result as string;
+            // 2. Call API
+            const res = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: newMessages.map(m => ({ role: m.role, content: m.content })), // Send history
+                    apiKey,
+                    model: selectedModel,
+                    enableNews,
+                    image: base64Image // Send image only for this turn
+                })
+            });
 
-                const res = await fetch('/api/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        image: base64Image,
-                        apiKey: apiKey
-                    })
-                });
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
 
-                const data = await res.json();
-                if (data.error) throw new Error(data.error);
+            // 3. Add AI Response
+            const aiMsg: Message = {
+                role: 'assistant',
+                content: data.result
+            };
+            setMessages(prev => [...prev, aiMsg]);
 
-                setAnalysis(data.result);
-
-                // Save to Database (Real History)
+            // 4. Save to DB (Log only the analysis part)
+            if (data.result.includes('SIGNAL')) {
                 const { data: { user } } = await supabase.auth.getUser();
                 if (user) {
-                    const { data: newLog } = await supabase.from('analysis_logs').insert({
+                    await supabase.from('analysis_logs').insert({
                         user_id: user.id,
-                        pair_name: 'Unknown', // Placeholder for now
-                        signal: data.result.includes('BUY') ? 'BUY' : data.result.includes('SELL') ? 'SELL' : 'WAIT',
+                        pair_name: 'Chat Analysis',
+                        signal: data.result.includes('BUY') ? 'BUY' : data.result.includes('SELL') ? 'SELL' : 'INFO',
                         analysis_result: data.result
-                    }).select().single();
-
-                    if (newLog) {
-                        setHistory(prev => [newLog, ...prev].slice(0, 5));
-                    }
+                    });
                 }
-            };
+            }
+
         } catch (err: any) {
-            alert('Analysis failed: ' + err.message);
+            alert('Error: ' + err.message);
         } finally {
             setLoading(false);
         }
@@ -112,137 +143,152 @@ export default function DashboardPage() {
     };
 
     return (
-        <div className="min-h-screen p-6 pb-20">
+        <div className="min-h-screen p-4 md:p-6 pb-20 flex flex-col h-screen">
             {/* Header */}
-            <header className="flex justify-between items-center mb-10">
-                <h1 className="text-2xl font-bold text-white">Trading Dashboard</h1>
-                <button onClick={handleLogout} className="flex items-center gap-2 text-gray-400 hover:text-red-400 transition-colors">
-                    <LogOut size={18} /> Logout
-                </button>
+            <header className="flex justify-between items-center mb-4 shrink-0">
+                <h1 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2">
+                    <Bot className="text-emerald-400" /> AI Trading Copilot
+                </h1>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setShowSettings(!showSettings)}
+                        className={`p-2 rounded-lg transition-colors ${showSettings ? 'bg-emerald-500/20 text-emerald-400' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        <Settings size={20} />
+                    </button>
+                    <button onClick={handleLogout} className="text-gray-400 hover:text-red-400">
+                        <LogOut size={20} />
+                    </button>
+                </div>
             </header>
 
-            <div className="grid lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-                {/* Left Column: Controls */}
-                <div className="space-y-6">
-                    {/* API Key Section */}
-                    <GlassCard className="p-6">
-                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <Key className="text-emerald-400" size={20} /> API Configuration
-                        </h2>
-                        <div className="space-y-3">
-                            <input
-                                type="password"
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                                placeholder="sk-or-..."
-                                className="w-full bg-black/30 border border-white/10 rounded-lg px-4 py-2 text-sm text-white focus:border-emerald-500 outline-none"
-                            />
-                            <button
-                                onClick={handleSaveKey}
-                                className="w-full bg-white/5 hover:bg-white/10 text-gray-300 text-sm py-2 rounded-lg transition-colors"
+            <div className="flex-1 flex gap-6 overflow-hidden">
+                {/* Sidebar (Settings) - Hidden on mobile unless toggled */}
+                <div className={`${showSettings ? 'block' : 'hidden'} md:block w-full md:w-80 shrink-0 space-y-4 overflow-y-auto`}>
+                    <GlassCard className="p-5 space-y-4">
+                        <h3 className="font-semibold text-white border-b border-white/10 pb-2">Configuration</h3>
+
+                        {/* API Key */}
+                        <div>
+                            <label className="text-xs text-gray-400 block mb-1">OpenRouter API Key</label>
+                            <div className="flex gap-2">
+                                <input
+                                    type="password"
+                                    value={apiKey}
+                                    onChange={(e) => setApiKey(e.target.value)}
+                                    className="w-full bg-black/30 border border-white/10 rounded px-2 py-1 text-sm text-white"
+                                    placeholder="sk-or-..."
+                                />
+                                <button onClick={() => localStorage.setItem('openrouter_key', apiKey)} className="bg-white/10 px-2 rounded text-xs hover:bg-white/20">Save</button>
+                            </div>
+                        </div>
+
+                        {/* Model Selection */}
+                        <div>
+                            <label className="text-xs text-gray-400 block mb-1">AI Model</label>
+                            <select
+                                value={selectedModel}
+                                onChange={(e) => setSelectedModel(e.target.value)}
+                                className="w-full bg-black/30 border border-white/10 rounded px-2 py-2 text-sm text-white outline-none focus:border-emerald-500"
                             >
-                                Save Key Locally
+                                {AI_MODELS.map(m => (
+                                    <option key={m.id} value={m.id} className="bg-gray-900">{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* News Toggle */}
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm text-gray-300 flex items-center gap-2">
+                                <Globe size={14} className="text-blue-400" /> Web Search (News)
+                            </label>
+                            <button
+                                onClick={() => setEnableNews(!enableNews)}
+                                className={`w-10 h-5 rounded-full relative transition-colors ${enableNews ? 'bg-emerald-500' : 'bg-gray-600'}`}
+                            >
+                                <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${enableNews ? 'left-6' : 'left-1'}`} />
                             </button>
                         </div>
                     </GlassCard>
 
-                    {/* News Section */}
-                    <GlassCard className="p-6">
-                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <span className="text-yellow-400">📰</span> Market Context
-                        </h2>
-                        <div className="text-xs text-gray-400 space-y-2">
-                            <p>• <span className="text-white">USD</span>: Fed hints rate cuts.</p>
-                            <p>• <span className="text-white">EUR</span>: ECB hawkish stance.</p>
-                            <p>• <span className="text-white">BTC</span>: ETF inflows record high.</p>
-                            <p>• <span className="text-white">GOLD</span>: Safe-haven demand up.</p>
+                    {/* Quick Stats / History Placeholder */}
+                    <GlassCard className="p-5">
+                        <h3 className="font-semibold text-white border-b border-white/10 pb-2 mb-3 flex items-center gap-2">
+                            <History size={16} /> Recent Signals
+                        </h3>
+                        <div className="text-xs text-gray-500 text-center py-4">
+                            Check "Analysis Logs" in DB for full history.
                         </div>
-                    </GlassCard>
-
-                    {/* Upload Section */}
-                    <GlassCard className="p-6">
-                        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <Upload className="text-blue-400" size={20} /> Chart Upload
-                        </h2>
-                        <div className="border-2 border-dashed border-white/10 rounded-xl p-8 text-center hover:border-emerald-500/50 transition-colors relative">
-                            <input
-                                type="file"
-                                accept="image/*"
-                                onChange={handleImageUpload}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                            />
-                            {preview ? (
-                                <img src={preview} alt="Preview" className="max-h-40 mx-auto rounded-lg" />
-                            ) : (
-                                <div className="text-gray-500">
-                                    <p>Drag & drop or click to upload</p>
-                                    <p className="text-xs mt-2">Supports PNG, JPG</p>
-                                </div>
-                            )}
-                        </div>
-
-                        <button
-                            onClick={handleAnalyze}
-                            disabled={loading || !image || !apiKey}
-                            className="w-full mt-4 bg-gradient-to-r from-emerald-500 to-cyan-500 text-black font-bold py-3 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
-                        >
-                            {loading ? 'Analyzing...' : (
-                                <>
-                                    <Play size={18} /> Analyze Chart
-                                </>
-                            )}
-                        </button>
                     </GlassCard>
                 </div>
 
-                {/* Right Column: Analysis Results */}
-                <div className="lg:col-span-2 space-y-6">
-                    <GlassCard className="min-h-[400px] p-8">
-                        <h2 className="text-xl font-bold mb-6 border-b border-white/10 pb-4">AI Analysis Result</h2>
-
-                        {analysis ? (
-                            <div className="prose prose-invert max-w-none">
-                                <div className="whitespace-pre-wrap text-gray-300 leading-relaxed">
-                                    {analysis}
+                {/* Chat Area */}
+                <GlassCard className="flex-1 flex flex-col overflow-hidden relative">
+                    {/* Messages */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-6">
+                        {messages.map((msg, idx) => (
+                            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] rounded-2xl p-4 ${msg.role === 'user'
+                                        ? 'bg-emerald-600/20 border border-emerald-500/30 text-white'
+                                        : 'bg-white/5 border border-white/10 text-gray-200'
+                                    }`}>
+                                    {msg.image && (
+                                        <img src={msg.image} alt="Uploaded chart" className="max-w-full rounded-lg mb-3 border border-white/10" />
+                                    )}
+                                    <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">
+                                        {msg.content}
+                                    </div>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-50 py-20">
-                                <div className="w-16 h-16 border-4 border-white/10 border-t-emerald-500 rounded-full animate-spin mb-4" style={{ animationDuration: '3s' }}></div>
-                                <p>Waiting for chart data...</p>
+                        ))}
+                        {loading && (
+                            <div className="flex justify-start">
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
+                                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" />
+                                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce delay-100" />
+                                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce delay-200" />
+                                </div>
                             </div>
                         )}
-                    </GlassCard>
+                        <div ref={messagesEndRef} />
+                    </div>
 
-                    {/* History Section */}
-                    <GlassCard className="p-6">
-                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                            <History className="text-purple-400" size={20} /> Recent Analysis
-                        </h3>
-                        <div className="space-y-3">
-                            {history.length === 0 ? (
-                                <p className="text-gray-500 text-sm">No history found.</p>
-                            ) : (
-                                history.map((log) => (
-                                    <div key={log.id} className="flex justify-between items-center bg-white/5 p-3 rounded-lg">
-                                        <div>
-                                            <span className={`text-xs font-bold px-2 py-1 rounded ${log.signal === 'BUY' ? 'bg-green-500/20 text-green-400' :
-                                                    log.signal === 'SELL' ? 'bg-red-500/20 text-red-400' :
-                                                        'bg-gray-500/20 text-gray-400'
-                                                }`}>
-                                                {log.signal}
-                                            </span>
-                                            <span className="text-gray-400 text-xs ml-2">
-                                                {new Date(log.created_at).toLocaleDateString()}
-                                            </span>
-                                        </div>
-                                        <button className="text-xs text-blue-400 hover:text-blue-300">View</button>
-                                    </div>
-                                ))
-                            )}
+                    {/* Input Area */}
+                    <div className="p-4 border-t border-white/10 bg-black/20">
+                        {preview && (
+                            <div className="mb-2 relative inline-block">
+                                <img src={preview} alt="Preview" className="h-16 rounded border border-white/20" />
+                                <button
+                                    onClick={() => { setImage(null); setPreview(null); }}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5"
+                                >
+                                    ×
+                                </button>
+                            </div>
+                        )}
+                        <div className="flex gap-3">
+                            <label className="cursor-pointer p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-emerald-400 transition-colors">
+                                <Paperclip size={20} />
+                                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                            </label>
+                            <input
+                                type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                placeholder="Ask about the market or upload a chart..."
+                                className="flex-1 bg-black/30 border border-white/10 rounded-xl px-4 text-white focus:border-emerald-500 outline-none"
+                            />
+                            <button
+                                onClick={handleSendMessage}
+                                disabled={loading || (!input && !image)}
+                                className="p-3 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-black font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <Send size={20} />
+                            </button>
                         </div>
-                    </GlassCard>
-                </div>
+                    </div>
+                </GlassCard>
             </div>
         </div>
     );
