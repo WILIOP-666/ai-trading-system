@@ -63,13 +63,12 @@ export async function POST(req: Request) {
         }
 
         // 3. Construct OpenRouter Payload
-        // We need to format messages for OpenRouter (OpenAI compatible)
         const conversation = [
             {
                 role: 'system',
                 content: systemContext
             },
-            ...messages // Append chat history
+            ...messages
         ];
 
         // If there's a new image in this turn, add it to the last user message
@@ -110,7 +109,32 @@ export async function POST(req: Request) {
             throw new Error(data.error.message || 'OpenRouter API Error');
         }
 
-        return NextResponse.json({ result: data.choices[0].message.content });
+        const resultText = data.choices[0].message.content;
+
+        // 4. Send to Discord (if it looks like a signal)
+        if (resultText.includes('SIGNAL') || resultText.includes('BUY') || resultText.includes('SELL')) {
+            try {
+                await fetch('https://discord.com/api/webhooks/1441089685651722330/x98blnkH_prlvFnye7r1r9Z0idFsRRWWQIfHHp9_xWCekwO0TeVJkUhgtyfqH0KVpwU-', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: "AI Trading Copilot",
+                        avatar_url: "https://cdn-icons-png.flaticon.com/512/4712/4712009.png",
+                        embeds: [{
+                            title: "🚀 New AI Trading Signal",
+                            description: resultText.substring(0, 4096), // Discord limit
+                            color: resultText.includes('BUY') ? 5763719 : resultText.includes('SELL') ? 15548997 : 9807270, // Green, Red, or Gray
+                            footer: { text: "Powered by AI Trading System" },
+                            timestamp: new Date().toISOString()
+                        }]
+                    })
+                });
+            } catch (err) {
+                console.error("Discord Webhook Error:", err);
+            }
+        }
+
+        return NextResponse.json({ result: resultText });
 
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
