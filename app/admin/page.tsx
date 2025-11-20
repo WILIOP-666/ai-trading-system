@@ -47,9 +47,17 @@ export default function AdminPage() {
 
     return (
         <div className="min-h-screen p-6">
-            <h1 className="text-3xl font-bold text-white mb-8 flex items-center gap-3">
-                <ShieldAlert className="text-red-500" /> Admin Control Panel
-            </h1>
+            <div className="flex justify-between items-center mb-8">
+                <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                    <ShieldAlert className="text-red-500" /> Admin Control Panel
+                </h1>
+                <button
+                    onClick={() => router.push('/dashboard')}
+                    className="bg-white/10 hover:bg-white/20 text-emerald-400 border border-emerald-500/50 px-4 py-2 rounded-lg flex items-center gap-2 transition-all font-semibold"
+                >
+                    🚀 Go to Trading Dashboard
+                </button>
+            </div>
 
             <div className="grid md:grid-cols-3 gap-6 mb-8">
                 <GlassCard className="p-6">
