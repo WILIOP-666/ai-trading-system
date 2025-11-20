@@ -30,14 +30,14 @@ async function fetchMarketNews(query: string) {
 
 export async function POST(req: Request) {
     try {
-        const { messages, apiKey, model, enableNews, image } = await req.json();
+        const { messages, apiKey, model, enableNews, image, systemPrompt } = await req.json();
 
         if (!apiKey) {
             return NextResponse.json({ error: 'API Key is required' }, { status: 400 });
         }
 
-        // 1. Context Building (News)
-        let systemContext = `You are a world-class Quantitative Technical & Fundamental Analyst. 
+        // 1. Context Building (Use custom system prompt or default)
+        let systemContext = systemPrompt || `You are a world-class Quantitative Technical & Fundamental Analyst. 
         Your goal is to analyze trading charts and provide high-probability setups.
         
         Format your response EXACTLY as follows:
@@ -51,13 +51,11 @@ export async function POST(req: Request) {
         **CONFIDENCE**: [1-100]%
         
         **REASONING**:
-        [Detailed technical analysis covering Trend, Support/Resistance, Indicators (RSI, MACD, EMA), and Price Action patterns]
-        `;
+        [Detailed technical analysis covering Trend, Support/Resistance, Indicators (RSI, MACD, EMA), and Price Action patterns]`;
 
         // 2. Add Real-time News if enabled
         if (enableNews) {
             // Try to detect pair from previous messages or default to "Global Market"
-            // For simplicity, we search for general market sentiment or specific pair if mentioned
             const news = await fetchMarketNews("Forex Crypto Gold Market Sentiment");
             systemContext += `\n\n**REAL-TIME MARKET NEWS CONTEXT (Use this for Fundamental Analysis):**\n${news}`;
         }
