@@ -1,3 +1,4 @@
+// Updated: 2025-11-21 01:09 - Fixed react-markdown dependency
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
@@ -254,8 +255,8 @@ export default function DashboardPage() {
                             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                         >
                             <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-5 ${msg.role === 'user'
-                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                                    : 'bg-[#1a1a1a] border border-white/5 text-gray-200 shadow-xl'
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                : 'bg-[#1a1a1a] border border-white/5 text-gray-200 shadow-xl'
                                 }`}>
                                 {msg.image && (
                                     <img src={msg.image} alt="Analysis" className="max-w-full h-auto rounded-lg mb-4 border border-white/10" />
@@ -414,8 +415,8 @@ export default function DashboardPage() {
                                             key={m.id}
                                             onClick={() => setSelectedModel(m.id)}
                                             className={`text-left px-4 py-3 rounded-xl border transition-all ${selectedModel === m.id
-                                                    ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                                                    : 'bg-[#0a0a0a] border-white/10 text-gray-300 hover:border-white/30'
+                                                ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                                                : 'bg-[#0a0a0a] border-white/10 text-gray-300 hover:border-white/30'
                                                 }`}
                                         >
                                             <div className="font-medium truncate">{m.name}</div>
@@ -444,8 +445,8 @@ export default function DashboardPage() {
                                             key={level}
                                             onClick={() => setReasoningEffort(level as any)}
                                             className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all ${reasoningEffort === level
-                                                    ? 'bg-blue-600 text-white shadow-lg'
-                                                    : 'text-gray-400 hover:text-white'
+                                                ? 'bg-blue-600 text-white shadow-lg'
+                                                : 'text-gray-400 hover:text-white'
                                                 }`}
                                         >
                                             {level}
