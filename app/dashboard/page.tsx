@@ -1,370 +1,425 @@
-'use client';
+"use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { GlassCard } from '@/components/ui/GlassCard';
 import {
-    Upload, Key, Send, LogOut, History, Settings, Globe, Paperclip, Bot,
-    Mic, PenTool, Brain, X, ChevronDown, Sparkles
+    Send, Image as ImageIcon, Settings, Mic, PenTool,
+    Brain, X, ChevronDown, Sparkles, Paperclip, Globe,
+    LayoutDashboard, Newspaper, BarChart2, LogOut, User, Menu
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase';
+import { createClientComponentClient } from '@supabase/ssr';
 import { useRouter } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
+import Link from 'next/link';
+import AOS from 'aos';
+import 'aos/dist/aos.css';
+
+// Components
 import { TradingSignalCard } from '@/components/ui/TradingSignalCard';
 
-// Expanded Model List based on screenshot
-const AI_MODELS = [
-    { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)' },
-    { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-    { id: 'openai/gpt-4o', name: 'GPT-4o' },
-    { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B' },
-    { id: 'x-ai/grok-beta', name: 'Grok 4.1 Fast (Beta)' }, // Placeholder for Grok
-    { id: 'openai/gpt-5-preview', name: 'GPT-5.1 Preview' }, // Placeholder
-];
-
+// Types
 type Message = {
-    role: 'user' | 'assistant';
+    role: 'user' | 'assistant' | 'system';
     content: string;
     image?: string;
 };
 
+type AIModel = {
+    id: string;
+    name: string;
+};
+
 export default function DashboardPage() {
-    const [apiKey, setApiKey] = useState('');
-    const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
-    const [image, setImage] = useState<File | null>(null);
-    const [preview, setPreview] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
-
-    // Advanced Settings State
-    const [selectedModel, setSelectedModel] = useState(AI_MODELS[0].id);
-    const [enableNews, setEnableNews] = useState(true);
+    const [messages, setMessages] = useState<Message[]>([
+        { role: 'assistant', content: "Hello! I'm your Advanced AI Trading Copilot. \n\nI can analyze charts, scan for patterns, and provide institutional-grade setups. Upload a chart or ask me about the market!" }
+    ]);
+    const [isLoading, setIsLoading] = useState(false);
+    const [apiKey, setApiKey] = useState('');
     const [showSettings, setShowSettings] = useState(false);
-    const [systemPrompt, setSystemPrompt] = useState("You are an expert AI Trading Assistant. Analyze charts, news, and market data to provide profitable trading signals with Entry, Stop Loss, and Take Profit levels.");
-    const [reasoningEffort, setReasoningEffort] = useState('Medium');
+    const [showTechMenu, setShowTechMenu] = useState(false);
+    const [isAdmin, setIsAdmin] = useState(false);
 
+    // Advanced Settings
+    const [selectedModel, setSelectedModel] = useState('google/gemini-2.0-flash-exp:free');
+    const [availableModels, setAvailableModels] = useState<AIModel[]>([
+        { id: 'google/gemini-2.0-flash-exp:free', name: 'Gemini 2.0 Flash (Free)' },
+        { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo' },
+        { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus' },
+        { id: 'mistral/mistral-large', name: 'Mistral Large' },
+    ]);
+
+    const [systemPrompt, setSystemPrompt] = useState("You are a professional crypto & forex trader. Analyze charts with precision.");
+    const [reasoningEffort, setReasoningEffort] = useState<'low' | 'medium' | 'high'>('medium');
+    const [enableNews, setEnableNews] = useState(false);
+
+    const [image, setImage] = useState<string | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const router = useRouter();
-    const supabase = createClient();
+    const supabase = createClientComponentClient();
 
+    // Initialize AOS & Fetch Models
     useEffect(() => {
+        AOS.init({ duration: 800, once: true });
+
+        // Load API Key
+        const storedKey = localStorage.getItem('openrouter_key');
+        if (storedKey) setApiKey(storedKey);
+
+        // Check Admin
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) router.push('/login');
+            if (user?.email === 'admin@aitrade.pro') setIsAdmin(true);
         };
         checkUser();
 
-        const savedKey = localStorage.getItem('openrouter_key');
-        if (savedKey) setApiKey(savedKey);
-
-        setMessages([{
-            role: 'assistant',
-            content: 'Hello! I am your AI Trading Copilot. Configure me in the settings or start chatting immediately.'
-        }]);
+        // Fetch Dynamic Models from OpenRouter
+        const fetchModels = async () => {
+            try {
+                const res = await fetch('https://openrouter.ai/api/v1/models');
+                const data = await res.json();
+                if (data.data) {
+                    const models = data.data.map((m: any) => ({ id: m.id, name: m.name }));
+                    setAvailableModels(prev => {
+                        // Filter out duplicates
+                        const existingIds = new Set(prev.map(p => p.id));
+                        const newModels = models.filter((m: any) => !existingIds.has(m.id));
+                        return [...prev, ...newModels.slice(0, 20)]; // Limit to top 20 new ones
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to fetch models", e);
+            }
+        };
+        fetchModels();
     }, []);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    const handleSaveSettings = () => {
+        localStorage.setItem('openrouter_key', apiKey);
+        setShowSettings(false);
+    };
+
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            setImage(file);
-            setPreview(URL.createObjectURL(file));
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImage(reader.result as string);
+            };
+            reader.readAsDataURL(file);
         }
     };
 
-    const handleSendMessage = async () => {
-        if ((!input.trim() && !image) || !apiKey) return alert('Please provide API Key and a message/image');
+    const insertTechIndicator = (indicator: string) => {
+        setInput(prev => `${prev} [Analyze ${indicator}]`);
+        setShowTechMenu(false);
+    };
 
-        setLoading(true);
+    const handleSend = async () => {
+        if ((!input.trim() && !image) || isLoading) return;
 
-        let base64Image = null;
-        if (image) {
-            const reader = new FileReader();
-            base64Image = await new Promise((resolve) => {
-                reader.onload = (e) => resolve(e.target?.result);
-                reader.readAsDataURL(image);
-            });
-        }
-
-        const newUserMsg: Message = {
-            role: 'user',
-            content: input || (image ? "Analyze this chart" : ""),
-            image: preview || undefined
-        };
-
-        const newMessages = [...messages, newUserMsg];
-        setMessages(newMessages);
+        const userMsg: Message = { role: 'user', content: input, image: image || undefined };
+        setMessages(prev => [...prev, userMsg]);
         setInput('');
         setImage(null);
-        setPreview(null);
+        setIsLoading(true);
 
         try {
-            const res = await fetch('/api/analyze', {
+            // Save to Supabase History
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                await supabase.from('analysis_logs').insert({
+                    user_id: user.id,
+                    image_url: image ? 'base64_image' : null,
+                    analysis_result: input, // Storing prompt for now
+                    model_used: selectedModel
+                });
+            }
+
+            const response = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    messages: newMessages.map(m => ({ role: m.role, content: m.content })),
+                    messages: [...messages, userMsg],
                     apiKey,
                     model: selectedModel,
                     enableNews,
-                    systemPrompt, // Send custom system prompt
-                    image: base64Image
+                    systemPrompt: `${systemPrompt} (Reasoning Effort: ${reasoningEffort})`
                 })
             });
 
-            const data = await res.json();
+            const data = await response.json();
+
             if (data.error) throw new Error(data.error);
 
-            const aiMsg: Message = {
-                role: 'assistant',
-                content: data.result
-            };
-            setMessages(prev => [...prev, aiMsg]);
-
-            if (data.result.includes('SIGNAL')) {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (user) {
-                    await supabase.from('analysis_logs').insert({
-                        user_id: user.id,
-                        pair_name: 'Chat Analysis',
-                        signal: data.result.includes('BUY') ? 'BUY' : data.result.includes('SELL') ? 'SELL' : 'INFO',
-                        analysis_result: data.result
-                    });
-                }
-            }
-
-        } catch (err: any) {
-            alert('Error: ' + err.message);
+            setMessages(prev => [...prev, { role: 'assistant', content: data.result }]);
+        } catch (error: any) {
+            setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${error.message}. Please check your API Key in settings.` }]);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
-    const handleLogout = async () => {
+    const handleSignOut = async () => {
         await supabase.auth.signOut();
         router.push('/login');
     };
 
-    // Risk Calculator State
-    const [showCalculator, setShowCalculator] = useState(false);
-    const [calcBalance, setCalcBalance] = useState(1000);
-    const [calcRisk, setCalcRisk] = useState(1);
-    const [calcSL, setCalcSL] = useState(50);
-    const [calcResult, setCalcResult] = useState<string | null>(null);
-
-    const calculateLot = () => {
-        const riskAmount = calcBalance * (calcRisk / 100);
-        const lotSize = riskAmount / (calcSL * 10);
-        setCalcResult(`${lotSize.toFixed(2)} Lots (Risk: $${riskAmount.toFixed(2)})`);
-    };
-
     return (
-        <div className="min-h-screen p-4 md:p-6 pb-20 flex flex-col h-screen relative bg-[#0a0a0a] text-gray-100 font-sans">
-            {/* Header */}
-            <header className="flex justify-between items-center mb-4 shrink-0 px-2">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center border border-emerald-500/30">
-                        <Bot className="text-emerald-400" />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-bold text-white leading-tight">AI Trading Copilot</h1>
-                        <p className="text-xs text-gray-500">Powered by {AI_MODELS.find(m => m.id === selectedModel)?.name}</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button onClick={() => setShowCalculator(true)} className="hidden md:flex items-center gap-2 bg-white/5 hover:bg-white/10 px-3 py-2 rounded-lg text-sm transition-colors border border-white/5">
-                        💰 Risk Calc
-                    </button>
-                    <button onClick={handleLogout} className="text-gray-400 hover:text-red-400 p-2">
-                        <LogOut size={20} />
-                    </button>
-                </div>
-            </header>
+        <div className="flex min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-blue-500/30 overflow-hidden">
 
-            <div className="flex-1 flex gap-6 overflow-hidden relative">
-                {/* Chat Area */}
-                <div className="flex-1 flex flex-col overflow-hidden relative max-w-5xl mx-auto w-full">
-                    {/* Messages */}
-                    <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-hide">
-                        {messages.map((msg, idx) => (
-                            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[90%] md:max-w-[80%] rounded-2xl p-5 ${msg.role === 'user'
-                                        ? 'bg-emerald-600/20 border border-emerald-500/30 text-white'
-                                        : 'bg-white/5 border border-white/10 text-gray-200'
-                                    }`}>
-                                    {msg.image && (
-                                        <img src={msg.image} alt="Uploaded chart" className="max-w-full rounded-lg mb-3 border border-white/10" />
-                                    )}
+            {/* SIDEBAR NAVIGATION */}
+            <aside className="w-20 lg:w-64 bg-[#111]/80 backdrop-blur-xl border-r border-white/5 flex flex-col justify-between z-50 transition-all duration-300">
+                <div>
+                    <div className="h-20 flex items-center justify-center lg:justify-start lg:px-6 border-b border-white/5">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <Brain className="w-6 h-6 text-white" />
+                        </div>
+                        <span className="hidden lg:block ml-3 font-bold text-xl tracking-tight">AI Trade<span className="text-blue-400">Pro</span></span>
+                    </div>
 
-                                    {msg.role === 'assistant' && msg.content.includes('SIGNAL') ? (
-                                        <TradingSignalCard content={msg.content} />
-                                    ) : (
-                                        <div className="whitespace-pre-wrap leading-relaxed text-sm md:text-base">
-                                            {msg.content}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                        {loading && (
-                            <div className="flex justify-start">
-                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
-                                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" />
-                                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce delay-100" />
-                                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce delay-200" />
-                                </div>
-                            </div>
+                    <nav className="mt-8 px-2 lg:px-4 space-y-2">
+                        <button className="w-full flex items-center p-3 rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20 transition-all group">
+                            <LayoutDashboard className="w-5 h-5 lg:mr-3" />
+                            <span className="hidden lg:block font-medium">Dashboard</span>
+                        </button>
+
+                        <Link href="/news" className="w-full flex items-center p-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-all group">
+                            <Newspaper className="w-5 h-5 lg:mr-3 group-hover:scale-110 transition-transform" />
+                            <span className="hidden lg:block font-medium">Market News</span>
+                        </Link>
+
+                        <button onClick={() => setShowTechMenu(!showTechMenu)} className="w-full flex items-center p-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-all group">
+                            <BarChart2 className="w-5 h-5 lg:mr-3 group-hover:scale-110 transition-transform" />
+                            <span className="hidden lg:block font-medium">Tech Analysis</span>
+                        </button>
+
+                        {isAdmin && (
+                            <Link href="/admin" className="w-full flex items-center p-3 rounded-xl text-purple-400 hover:bg-purple-500/10 transition-all group">
+                                <User className="w-5 h-5 lg:mr-3" />
+                                <span className="hidden lg:block font-medium">Admin Panel</span>
+                            </Link>
                         )}
-                        <div ref={messagesEndRef} />
+                    </nav>
+                </div>
+
+                <div className="p-4 border-t border-white/5">
+                    <button onClick={handleSignOut} className="w-full flex items-center p-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-all">
+                        <LogOut className="w-5 h-5 lg:mr-3" />
+                        <span className="hidden lg:block font-medium">Sign Out</span>
+                    </button>
+                </div>
+            </aside>
+
+            {/* MAIN CONTENT */}
+            <main className="flex-1 flex flex-col relative h-screen overflow-hidden">
+
+                {/* HEADER */}
+                <header className="h-16 border-b border-white/5 bg-[#0a0a0a]/50 backdrop-blur-md flex items-center justify-between px-6 z-40">
+                    <div className="flex items-center space-x-4">
+                        <div className="flex items-center bg-[#1a1a1a] rounded-full px-4 py-1.5 border border-white/10 hover:border-blue-500/50 transition-colors cursor-pointer" onClick={() => setShowSettings(true)}>
+                            <Sparkles className="w-4 h-4 text-blue-400 mr-2" />
+                            <span className="text-sm font-medium text-gray-200 truncate max-w-[150px]">{availableModels.find(m => m.id === selectedModel)?.name || 'Select Model'}</span>
+                            <ChevronDown className="w-3 h-3 text-gray-500 ml-2" />
+                        </div>
+
+                        {/* DuckDuckGo Toggle */}
+                        <button
+                            onClick={() => setEnableNews(!enableNews)}
+                            className={`flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${enableNews ? 'bg-green-500/20 border-green-500/50 text-green-400' : 'bg-[#1a1a1a] border-white/10 text-gray-400'}`}
+                        >
+                            <Globe className="w-3 h-3 mr-1.5" />
+                            {enableNews ? 'Web Search ON' : 'Web Search OFF'}
+                        </button>
                     </div>
 
-                    {/* Advanced Input Area */}
-                    <div className="p-4">
-                        <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-2 shadow-2xl">
-                            {preview && (
-                                <div className="px-4 pt-4 pb-2 relative inline-block">
-                                    <img src={preview} alt="Preview" className="h-20 rounded-lg border border-white/20" />
-                                    <button
-                                        onClick={() => { setImage(null); setPreview(null); }}
-                                        className="absolute top-2 right-0 bg-black/50 hover:bg-red-500 text-white rounded-full p-1 backdrop-blur-sm transition-colors"
-                                    >
-                                        <X size={14} />
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Text Input */}
-                            <textarea
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleSendMessage();
-                                    }
-                                }}
-                                placeholder="Start a new message..."
-                                className="w-full bg-transparent border-none text-white px-4 py-3 focus:ring-0 outline-none resize-none min-h-[50px] max-h-[200px]"
-                                rows={1}
-                            />
-
-                            {/* Toolbar */}
-                            <div className="flex items-center justify-between px-2 pb-1 pt-2 border-t border-white/5">
-                                <div className="flex items-center gap-1">
-                                    {/* Settings Trigger */}
-                                    <button
-                                        onClick={() => setShowSettings(true)}
-                                        className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-                                        title="Model Settings"
-                                    >
-                                        <Settings size={18} />
-                                    </button>
-
-                                    {/* Attachment */}
-                                    <label className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer">
-                                        <Paperclip size={18} />
-                                        <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                                    </label>
-
-                                    {/* Tools (Visual only for now) */}
-                                    <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-                                        <PenTool size={18} />
-                                    </button>
-                                    <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors">
-                                        <Mic size={18} />
-                                    </button>
-
-                                    <div className="w-px h-5 bg-white/10 mx-2" />
-
-                                    {/* Web Search Toggle */}
-                                    <button
-                                        onClick={() => setEnableNews(!enableNews)}
-                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${enableNews
-                                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                                                : 'bg-white/5 text-gray-400 border border-white/10 hover:bg-white/10'
-                                            }`}
-                                    >
-                                        <Globe size={14} />
-                                        <span>Search</span>
-                                        <div className={`w-2 h-2 rounded-full ${enableNews ? 'bg-blue-400' : 'bg-gray-500'}`} />
-                                    </button>
-                                </div>
-
-                                <div className="flex items-center gap-3">
-                                    {/* Memory Indicator */}
-                                    <div className="hidden md:flex items-center gap-2 text-xs text-gray-500">
-                                        <Brain size={14} />
-                                        <span>Memory ({messages.length})</span>
-                                    </div>
-
-                                    {/* Send Button */}
-                                    <button
-                                        onClick={handleSendMessage}
-                                        disabled={loading || (!input && !image)}
-                                        className={`p-2 rounded-xl transition-all ${input || image
-                                                ? 'bg-emerald-500 text-black hover:bg-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
-                                                : 'bg-white/10 text-gray-500 cursor-not-allowed'
-                                            }`}
-                                    >
-                                        <Send size={18} />
-                                    </button>
-                                </div>
-                            </div>
+                    <div className="flex items-center space-x-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-xs font-bold">
+                            AD
                         </div>
                     </div>
-                </div>
-            </div>
+                </header>
 
-            {/* Advanced Settings Modal */}
+                {/* CHAT AREA */}
+                <div className="flex-1 overflow-y-auto p-4 lg:p-8 space-y-6 scrollbar-thin scrollbar-thumb-gray-800 scrollbar-track-transparent">
+                    {messages.map((msg, idx) => (
+                        <div
+                            key={idx}
+                            data-aos="fade-up"
+                            data-aos-delay="50"
+                            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                            <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-5 ${msg.role === 'user'
+                                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                                    : 'bg-[#1a1a1a] border border-white/5 text-gray-200 shadow-xl'
+                                }`}>
+                                {msg.image && (
+                                    <img src={msg.image} alt="Analysis" className="max-w-full h-auto rounded-lg mb-4 border border-white/10" />
+                                )}
+
+                                {msg.content.includes('SIGNAL') ? (
+                                    <TradingSignalCard content={msg.content} />
+                                ) : (
+                                    <ReactMarkdown
+                                        className="prose prose-invert prose-sm max-w-none"
+                                        components={{
+                                            p: ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
+                                            strong: ({ node, ...props }) => <span className="font-bold text-blue-300" {...props} />,
+                                            ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
+                                            li: ({ node, ...props }) => <li className="text-gray-300" {...props} />
+                                        }}
+                                    >
+                                        {msg.content}
+                                    </ReactMarkdown>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                </div>
+
+                {/* INPUT AREA */}
+                <div className="p-4 lg:p-6 bg-[#0a0a0a] border-t border-white/5 relative z-40">
+                    {/* Tech Analysis Quick Menu */}
+                    {showTechMenu && (
+                        <div className="absolute bottom-full left-6 mb-2 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl p-2 w-64 grid grid-cols-2 gap-2" data-aos="fade-up">
+                            {['RSI Divergence', 'MACD Crossover', 'Fibonacci Levels', 'Elliott Wave', 'Bollinger Bands', 'Volume Profile'].map((tech) => (
+                                <button
+                                    key={tech}
+                                    onClick={() => insertTechIndicator(tech)}
+                                    className="text-xs text-left px-3 py-2 rounded-lg hover:bg-white/5 text-gray-300 hover:text-blue-400 transition-colors"
+                                >
+                                    {tech}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="max-w-4xl mx-auto relative">
+                        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur opacity-75 pointer-events-none"></div>
+                        <div className="relative bg-[#111] rounded-2xl border border-white/10 flex flex-col shadow-2xl">
+
+                            {/* Toolbar */}
+                            <div className="flex items-center justify-between px-4 py-2 border-b border-white/5">
+                                <div className="flex items-center space-x-2">
+                                    <button
+                                        onClick={() => setShowSettings(true)}
+                                        className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors" title="Settings"
+                                    >
+                                        <Settings className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="p-2 text-gray-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors" title="Upload Chart"
+                                    >
+                                        <Paperclip className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setShowTechMenu(!showTechMenu)}
+                                        className="p-2 text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 rounded-lg transition-colors" title="Technical Tools"
+                                    >
+                                        <PenTool className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="text-xs text-gray-600 font-mono">
+                                    {messages.length} msgs • Memory Active
+                                </div>
+                            </div>
+
+                            {/* Text Area */}
+                            <div className="flex items-end p-2">
+                                <textarea
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                            e.preventDefault();
+                                            handleSend();
+                                        }
+                                    }}
+                                    placeholder="Ask about any market, upload a chart, or request a signal..."
+                                    className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-gray-500 resize-none max-h-48 py-3 px-3 min-h-[60px]"
+                                    rows={1}
+                                />
+                                <button
+                                    onClick={handleSend}
+                                    disabled={isLoading || (!input.trim() && !image)}
+                                    className="mb-2 mr-2 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-600/20"
+                                >
+                                    <Send className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            {image && (
+                                <div className="absolute bottom-full left-0 mb-4 ml-4">
+                                    <div className="relative group">
+                                        <img src={image} alt="Preview" className="w-24 h-24 object-cover rounded-xl border border-white/20 shadow-xl" />
+                                        <button
+                                            onClick={() => setImage(null)}
+                                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:bg-red-600 transition-colors"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="text-center mt-3 text-xs text-gray-600">
+                        AI can make mistakes. Always verify trading signals.
+                    </div>
+                </div>
+            </main>
+
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
+
+            {/* SETTINGS MODAL */}
             {showSettings && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-                    <div className="bg-[#121212] border border-white/10 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                        {/* Modal Header */}
-                        <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#1a1a1a]">
-                            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-                                <Sparkles className="text-emerald-400" size={18} /> Model Configuration
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" data-aos="zoom-in">
+                    <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
+                        <div className="p-6 border-b border-white/10 flex justify-between items-center">
+                            <h2 className="text-xl font-bold flex items-center">
+                                <Settings className="w-5 h-5 mr-2 text-blue-400" />
+                                AI Configuration
                             </h2>
                             <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-white">
-                                <X size={20} />
+                                <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        {/* Modal Body */}
-                        <div className="p-6 overflow-y-auto space-y-6">
+                        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
                             {/* API Key */}
                             <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">API Key</label>
-                                <div className="flex gap-2">
-                                    <div className="relative flex-1">
-                                        <Key className="absolute left-3 top-2.5 text-gray-500" size={16} />
-                                        <input
-                                            type="password"
-                                            value={apiKey}
-                                            onChange={(e) => setApiKey(e.target.value)}
-                                            className="w-full bg-black/30 border border-white/10 rounded-lg pl-10 pr-4 py-2 text-sm text-white focus:border-emerald-500 outline-none transition-colors"
-                                            placeholder="sk-or-..."
-                                        />
-                                    </div>
-                                    <button onClick={() => localStorage.setItem('openrouter_key', apiKey)} className="bg-white/10 px-4 rounded-lg text-xs font-bold hover:bg-white/20 transition-colors">Save</button>
-                                </div>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">OpenRouter API Key</label>
+                                <input
+                                    type="password"
+                                    value={apiKey}
+                                    onChange={(e) => setApiKey(e.target.value)}
+                                    placeholder="sk-or-..."
+                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                                />
+                                <p className="text-xs text-gray-500 mt-2">Key is stored locally in your browser.</p>
                             </div>
 
                             {/* Model Selection */}
                             <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">AI Model</label>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    {AI_MODELS.map(m => (
+                                <label className="block text-sm font-medium text-gray-400 mb-2">AI Model</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {availableModels.map((m) => (
                                         <button
                                             key={m.id}
                                             onClick={() => setSelectedModel(m.id)}
-                                            className={`p-3 rounded-xl border text-left transition-all ${selectedModel === m.id
-                                                    ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400'
-                                                    : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10'
+                                            className={`text-left px-4 py-3 rounded-xl border transition-all ${selectedModel === m.id
+                                                    ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                                                    : 'bg-[#0a0a0a] border-white/10 text-gray-300 hover:border-white/30'
                                                 }`}
                                         >
-                                            <div className="font-medium text-sm">{m.name}</div>
-                                            <div className="text-[10px] opacity-60">{m.id.split('/')[0]}</div>
+                                            <div className="font-medium truncate">{m.name}</div>
+                                            <div className="text-xs opacity-60 truncate">{m.id}</div>
                                         </button>
                                     ))}
                                 </div>
@@ -372,25 +427,24 @@ export default function DashboardPage() {
 
                             {/* System Prompt */}
                             <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">System Prompt (Persona)</label>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">System Persona (Prompt)</label>
                                 <textarea
                                     value={systemPrompt}
                                     onChange={(e) => setSystemPrompt(e.target.value)}
-                                    className="w-full bg-black/30 border border-white/10 rounded-xl p-4 text-sm text-gray-300 focus:border-emerald-500 outline-none h-32 resize-none leading-relaxed"
+                                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[100px]"
                                 />
-                                <p className="text-[10px] text-gray-500 mt-2">Customize how the AI behaves. You can tell it to be a "Scalper", "Swing Trader", or "Risk Manager".</p>
                             </div>
 
                             {/* Reasoning Effort */}
                             <div>
-                                <label className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 block">Reasoning Effort</label>
-                                <div className="flex bg-black/30 p-1 rounded-lg border border-white/10 w-fit">
-                                    {['Low', 'Medium', 'High'].map(level => (
+                                <label className="block text-sm font-medium text-gray-400 mb-2">Reasoning Effort</label>
+                                <div className="flex space-x-4 bg-[#0a0a0a] p-1 rounded-xl border border-white/10">
+                                    {['low', 'medium', 'high'].map((level) => (
                                         <button
                                             key={level}
-                                            onClick={() => setReasoningEffort(level)}
-                                            className={`px-4 py-1.5 rounded-md text-xs font-medium transition-all ${reasoningEffort === level
-                                                    ? 'bg-emerald-500 text-black shadow-lg'
+                                            onClick={() => setReasoningEffort(level as any)}
+                                            className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all ${reasoningEffort === level
+                                                    ? 'bg-blue-600 text-white shadow-lg'
                                                     : 'text-gray-400 hover:text-white'
                                                 }`}
                                         >
@@ -401,47 +455,15 @@ export default function DashboardPage() {
                             </div>
                         </div>
 
-                        {/* Modal Footer */}
-                        <div className="p-4 border-t border-white/10 bg-[#1a1a1a] flex justify-end">
+                        <div className="p-6 border-t border-white/10 bg-[#0a0a0a]/50 flex justify-end">
                             <button
-                                onClick={() => setShowSettings(false)}
-                                className="bg-white text-black px-6 py-2 rounded-lg font-bold hover:bg-gray-200 transition-colors"
+                                onClick={handleSaveSettings}
+                                className="bg-white text-black px-6 py-2 rounded-xl font-bold hover:bg-gray-200 transition-colors"
                             >
-                                Done
+                                Save Configuration
                             </button>
                         </div>
                     </div>
-                </div>
-            )}
-
-            {/* Risk Calculator Modal (Keep existing) */}
-            {showCalculator && (
-                <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <GlassCard className="w-full max-w-sm p-6 relative">
-                        <button onClick={() => setShowCalculator(false)} className="absolute top-4 right-4 text-gray-400 hover:text-white">×</button>
-                        <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">💰 Risk Calculator</h3>
-                        <div className="space-y-4">
-                            <div>
-                                <label className="text-xs text-gray-400">Account Balance ($)</label>
-                                <input type="number" value={calcBalance} onChange={(e) => setCalcBalance(Number(e.target.value))} className="w-full bg-black/30 border border-white/10 rounded p-2 text-white" />
-                            </div>
-                            <div>
-                                <label className="text-xs text-gray-400">Risk Percentage (%)</label>
-                                <input type="number" value={calcRisk} onChange={(e) => setCalcRisk(Number(e.target.value))} className="w-full bg-black/30 border border-white/10 rounded p-2 text-white" />
-                            </div>
-                            <div>
-                                <label className="text-xs text-gray-400">Stop Loss (Pips)</label>
-                                <input type="number" value={calcSL} onChange={(e) => setCalcSL(Number(e.target.value))} className="w-full bg-black/30 border border-white/10 rounded p-2 text-white" />
-                            </div>
-                            <button onClick={calculateLot} className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 rounded transition-colors">Calculate</button>
-                            {calcResult && (
-                                <div className="mt-4 p-3 bg-emerald-500/20 border border-emerald-500/50 rounded text-center">
-                                    <p className="text-xs text-emerald-300 uppercase font-bold">Recommended Position</p>
-                                    <p className="text-xl font-bold text-white">{calcResult}</p>
-                                </div>
-                            )}
-                        </div>
-                    </GlassCard>
                 </div>
             )}
         </div>
