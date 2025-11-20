@@ -1,4 +1,5 @@
 'use client';
+// Force Re-deploy: 2025-11-20 23:53
 
 import { useState, useEffect, useRef } from 'react';
 import { GlassCard } from '@/components/ui/GlassCard';
