@@ -91,12 +91,18 @@ export async function POST(req: Request) {
         }
 
         // 3. Construct OpenRouter Payload
+        // Sanitize messages: remove 'image' property from history to avoid huge payloads/errors
+        const cleanMessages = messages.map((msg: any) => ({
+            role: msg.role,
+            content: msg.content
+        }));
+
         const conversation = [
             {
                 role: 'system',
                 content: systemContext
             },
-            ...messages
+            ...cleanMessages
         ];
 
         // If there's a new image in this turn, add it to the last user message
