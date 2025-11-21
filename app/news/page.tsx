@@ -19,46 +19,74 @@ export default function NewsPage() {
     const handleSearch = async () => {
         setLoading(true);
         try {
-            // We'll use our existing API to fetch news context
-            // In a real app, we might want a dedicated news endpoint, but this works for now
-            // by piggybacking on the analyze route or we can simulate it for the UI demo
-            // For this demo, I will simulate a rich news response since our backend 
-            // returns a string summary. 
+            // Fetch real news summary via our AI agent
+            const response = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: [{
+                        role: 'user',
+                        content: `Find and summarize the top 4 latest and most important trading news articles about "${query}". 
+                        
+                        Format your response EXACTLY like this for each article (do not add any other text):
+                        
+                        TITLE: [Article Title]
+                        SOURCE: [Source Name, e.g. Bloomberg]
+                        TIME: [e.g. 2 hours ago]
+                        SNIPPET: [Brief summary, max 2 sentences]
+                        ---`
+                    }],
+                    apiKey: localStorage.getItem('openrouter_key') || '',
+                    model: 'google/gemini-2.0-flash-exp:free', // Fast model for news
+                    enableNews: true, // Force web search
+                    newsSources: ['investing.com', 'forexfactory.com', 'bloomberg.com', 'reuters.com', 'coindesk.com'],
+                    systemPrompt: "You are a news aggregator. Provide strictly formatted news summaries."
+                })
+            });
 
-            // Simulating API call delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            const data = await response.json();
+            const resultText = data.result || "";
 
-            // Mock Data for UI Showcase (since backend returns plain text summary)
-            // In production, we would parse the backend response or use a real news API.
-            const mockNews = [
-                {
-                    title: `${query} Analysis: Bullish Momentum Continues`,
-                    source: "Bloomberg",
-                    time: "2 hours ago",
-                    snippet: "Markets are showing strong signs of recovery as institutional investors increase their positions..."
-                },
-                {
-                    title: "Central Bank Policy Shift Impacts Trading Volumes",
-                    source: "Reuters",
-                    time: "4 hours ago",
-                    snippet: "The latest announcement from the Fed has caused a ripple effect across major currency pairs..."
-                },
-                {
-                    title: "Top 5 Altcoins to Watch This Week",
-                    source: "CoinDesk",
-                    time: "5 hours ago",
-                    snippet: "With Bitcoin stabilizing, these alternative cryptocurrencies are showing potential for breakout..."
-                },
-                {
-                    title: "Gold Prices Hit New Highs Amidst Geopolitical Tension",
-                    source: "Investing.com",
-                    time: "12 hours ago",
-                    snippet: "Safe-haven assets are in high demand as global uncertainties rise, pushing XAU/USD to new levels..."
+            // Parse the text response into news items
+            const parsedNews: any[] = [];
+            const articles = resultText.split('---');
+
+            articles.forEach((art: string) => {
+                const title = art.match(/TITLE:\s*(.*)/)?.[1];
+                const source = art.match(/SOURCE:\s*(.*)/)?.[1];
+                const time = art.match(/TIME:\s*(.*)/)?.[1];
+                const snippet = art.match(/SNIPPET:\s*(.*)/)?.[1];
+
+                if (title && snippet) {
+                    parsedNews.push({
+                        title: title.trim(),
+                        source: source?.trim() || "Market News",
+                        time: time?.trim() || "Today",
+                        snippet: snippet.trim()
+                    });
                 }
-            ];
-            setNews(mockNews);
+            });
+
+            if (parsedNews.length > 0) {
+                setNews(parsedNews);
+            } else {
+                // Fallback if parsing fails or no news found
+                setNews([{
+                    title: `Market Update: ${query}`,
+                    source: "AI Analyst",
+                    time: "Just now",
+                    snippet: resultText.substring(0, 200) + "..."
+                }]);
+            }
+
         } catch (error) {
             console.error("Failed to fetch news", error);
+            setNews([{
+                title: "Error Fetching News",
+                source: "System",
+                time: "Now",
+                snippet: "Could not retrieve real-time news. Please check your connection or API key."
+            }]);
         } finally {
             setLoading(false);
         }

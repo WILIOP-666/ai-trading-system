@@ -2,9 +2,18 @@ import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 
 // Helper to fetch news from DuckDuckGo (Lite version for speed/scraping)
-async function fetchMarketNews(query: string) {
+// Helper to fetch news from DuckDuckGo with specific site targeting
+async function fetchMarketNews(query: string, sources: string[] = []) {
     try {
-        const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query + " trading news")}`, {
+        let searchQuery = query + " trading news";
+
+        // If specific sources are provided, restrict search to them
+        if (sources.length > 0) {
+            const siteOperators = sources.map(s => `site:${s}`).join(' OR ');
+            searchQuery = `${query} (${siteOperators})`;
+        }
+
+        const res = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQuery)}`, {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
             }
@@ -14,14 +23,15 @@ async function fetchMarketNews(query: string) {
 
         let newsItems: string[] = [];
         $('.result__body').each((i, el) => {
-            if (i < 5) { // Get top 5 news
+            if (i < 8) { // Get top 8 news for better context
                 const title = $(el).find('.result__a').text();
                 const snippet = $(el).find('.result__snippet').text();
-                newsItems.push(`- ${title}: ${snippet}`);
+                const source = $(el).find('.result__url').text().trim();
+                newsItems.push(`- [${source}] ${title}: ${snippet}`);
             }
         });
 
-        return newsItems.join('\n');
+        return newsItems.length > 0 ? newsItems.join('\n') : "No specific news found from selected sources.";
     } catch (error) {
         console.error("News fetch error:", error);
         return "Could not fetch real-time news. Relying on technical analysis only.";
@@ -30,15 +40,31 @@ async function fetchMarketNews(query: string) {
 
 export async function POST(req: Request) {
     try {
-        const { messages, apiKey, model, enableNews, image, systemPrompt } = await req.json();
+        const {
+            messages, apiKey, model, enableNews, image, systemPrompt,
+            newsSources, tradingMode, techAnalysis
+        } = await req.json();
 
         if (!apiKey) {
             return NextResponse.json({ error: 'API Key is required' }, { status: 400 });
         }
 
-        // 1. Context Building (Use custom system prompt or default)
-        let systemContext = systemPrompt || `You are a world-class Quantitative Technical & Fundamental Analyst. 
-        Your goal is to analyze trading charts and provide high-probability setups.
+        // 1. Context Building
+        let modeInstruction = "";
+        if (tradingMode === 'scalping') {
+            modeInstruction = "TRADING MODE: SCALPING. Focus on short-term price action (1m, 5m, 15m), quick entries/exits, and momentum indicators. Tight stop losses.";
+        } else if (tradingMode === 'long') {
+            modeInstruction = "TRADING MODE: SWING/LONG-TERM. Focus on higher timeframes (4H, Daily, Weekly), macro trends, and fundamental drivers. Wider stop losses and larger targets.";
+        }
+
+        let techInstruction = "";
+        if (techAnalysis) {
+            techInstruction = "TECHNICAL ANALYSIS REQUIRED: You MUST utilize RSI, MACD, Bollinger Bands, and Elliott Wave Theory in your analysis. Identify key support/resistance levels precisely.";
+        }
+
+        let systemContext = systemPrompt || `You are a world-class Quantitative Technical & Fundamental Analyst.`;
+
+        systemContext += `\n\n${modeInstruction}\n${techInstruction}
         
         Format your response EXACTLY as follows:
         
@@ -51,13 +77,17 @@ export async function POST(req: Request) {
         **CONFIDENCE**: [1-100]%
         
         **REASONING**:
-        [Detailed technical analysis covering Trend, Support/Resistance, Indicators (RSI, MACD, EMA), and Price Action patterns]`;
+        [Detailed analysis covering Trend, Support/Resistance, Indicators, and News Impact]`;
 
         // 2. Add Real-time News if enabled
         if (enableNews) {
-            // Try to detect pair from previous messages or default to "Global Market"
-            const news = await fetchMarketNews("Forex Crypto Gold Market Sentiment");
-            systemContext += `\n\n**REAL-TIME MARKET NEWS CONTEXT (Use this for Fundamental Analysis):**\n${news}`;
+            // Extract potential pair from user message or default
+            const lastUserMsg = messages[messages.length - 1].content;
+            const pairMatch = lastUserMsg.match(/\b[A-Z]{3}\/?[A-Z]{3}\b/); // Simple regex for pairs like EURUSD or EUR/USD
+            const searchTopic = pairMatch ? pairMatch[0] : "Global Market Sentiment";
+
+            const news = await fetchMarketNews(searchTopic, newsSources);
+            systemContext += `\n\n**REAL-TIME MARKET NEWS CONTEXT (Sources: ${newsSources?.join(', ') || 'General'}):**\n${news}`;
         }
 
         // 3. Construct OpenRouter Payload
@@ -122,7 +152,7 @@ export async function POST(req: Request) {
                             title: "🚀 New AI Trading Signal",
                             description: resultText.substring(0, 4096), // Discord limit
                             color: resultText.includes('BUY') ? 5763719 : resultText.includes('SELL') ? 15548997 : 9807270, // Green, Red, or Gray
-                            footer: { text: "Powered by AI Trading System" },
+                            footer: { text: `Mode: ${tradingMode} | Powered by AI Trading System` },
                             timestamp: new Date().toISOString()
                         }]
                     })
