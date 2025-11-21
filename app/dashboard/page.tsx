@@ -1,6 +1,6 @@
-```
 "use client";
 
+import { useState, useEffect, useRef } from 'react';
 import {
   Send, Image as ImageIcon, Settings, Mic, PenTool,
   Brain, X, ChevronDown, Sparkles, Paperclip, Globe,
@@ -142,7 +142,7 @@ export default function DashboardPage() {
     // Prepare active news sources list
     const activeSources = Object.entries(newsSources)
       .filter(([_, active]) => active)
-      .map(([source]) => `${ source }.com`);
+      .map(([source]) => `${source}.com`);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -166,7 +166,7 @@ export default function DashboardPage() {
           newsSources: activeSources,
           tradingMode,
           techAnalysis: techAnalysisEnabled,
-          systemPrompt: `${ systemPrompt } (Reasoning Effort: ${ reasoningEffort })`
+          systemPrompt: `${systemPrompt} (Reasoning Effort: ${reasoningEffort})`
         })
       });
 
@@ -176,7 +176,7 @@ export default function DashboardPage() {
 
       setMessages(prev => [...prev, { role: 'assistant', content: data.result }]);
     } catch (error: any) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${ error.message }. Please check your API Key in settings.` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${error.message}. Please check your API Key in settings.` }]);
     } finally {
       setIsLoading(false);
     }
@@ -224,51 +224,51 @@ export default function DashboardPage() {
 
             {/* Trading Mode */}
             <div className="bg-[#1a1a1a] rounded-xl p-1 flex mb-4 border border-white/5">
-                <button
-                    onClick={() => setTradingMode('scalping')}
-                    className={`flex - 1 py - 2 text - xs font - medium rounded - lg transition - all ${ tradingMode === 'scalping' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white' } `}
-                >
-                    Scalping
-                </button>
-                <button
-                    onClick={() => setTradingMode('long')}
-                    className={`flex - 1 py - 2 text - xs font - medium rounded - lg transition - all ${ tradingMode === 'long' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white' } `}
-                >
-                    Long
-                </button>
+              <button
+                onClick={() => setTradingMode('scalping')}
+                className={`flex - 1 py - 2 text - xs font - medium rounded - lg transition - all ${tradingMode === 'scalping' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'} `}
+              >
+                Scalping
+              </button>
+              <button
+                onClick={() => setTradingMode('long')}
+                className={`flex - 1 py - 2 text - xs font - medium rounded - lg transition - all ${tradingMode === 'long' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'} `}
+              >
+                Long
+              </button>
             </div>
 
             {/* Tech Analysis Toggle */}
             <div className="flex items-center justify-between mb-4 p-2 rounded-lg hover:bg-white/5 transition-colors">
-                <span className="text-sm text-gray-300 flex items-center"><Activity className="w-4 h-4 mr-2 text-blue-400"/> Tech Analysis</span>
-                <button
-                    onClick={() => setTechAnalysisEnabled(!techAnalysisEnabled)}
-                    className={`w - 10 h - 5 rounded - full relative transition - colors ${ techAnalysisEnabled ? 'bg-blue-600' : 'bg-gray-700' } `}
-                >
-                    <div className={`w - 3 h - 3 bg - white rounded - full absolute top - 1 transition - all ${ techAnalysisEnabled ? 'left-6' : 'left-1' } `} />
-                </button>
+              <span className="text-sm text-gray-300 flex items-center"><Activity className="w-4 h-4 mr-2 text-blue-400" /> Tech Analysis</span>
+              <button
+                onClick={() => setTechAnalysisEnabled(!techAnalysisEnabled)}
+                className={`w - 10 h - 5 rounded - full relative transition - colors ${techAnalysisEnabled ? 'bg-blue-600' : 'bg-gray-700'} `}
+              >
+                <div className={`w - 3 h - 3 bg - white rounded - full absolute top - 1 transition - all ${techAnalysisEnabled ? 'left-6' : 'left-1'} `} />
+              </button>
             </div>
 
             {/* News Sources */}
             <div className="space-y-2">
-                <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-gray-500 uppercase">News Sources</span>
-                    <button onClick={() => setEnableNews(!enableNews)} className={`text - xs ${ enableNews ? 'text-green-400' : 'text-gray-500' } `}>{enableNews ? 'ON' : 'OFF'}</button>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-gray-500 uppercase">News Sources</span>
+                <button onClick={() => setEnableNews(!enableNews)} className={`text - xs ${enableNews ? 'text-green-400' : 'text-gray-500'} `}>{enableNews ? 'ON' : 'OFF'}</button>
+              </div>
+              {enableNews && (
+                <div className="space-y-1 pl-2 border-l-2 border-white/10">
+                  {Object.entries(newsSources).map(([source, active]) => (
+                    <button
+                      key={source}
+                      onClick={() => toggleNewsSource(source as any)}
+                      className={`w - full text - left text - xs py - 1 px - 2 rounded flex items - center justify - between ${active ? 'text-blue-300 bg-blue-500/10' : 'text-gray-500 hover:text-gray-300'} `}
+                    >
+                      <span className="capitalize">{source}</span>
+                      {active && <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
+                    </button>
+                  ))}
                 </div>
-                {enableNews && (
-                    <div className="space-y-1 pl-2 border-l-2 border-white/10">
-                        {Object.entries(newsSources).map(([source, active]) => (
-                            <button
-                                key={source}
-                                onClick={() => toggleNewsSource(source as any)}
-                                className={`w - full text - left text - xs py - 1 px - 2 rounded flex items - center justify - between ${ active ? 'text-blue-300 bg-blue-500/10' : 'text-gray-500 hover:text-gray-300' } `}
-                            >
-                                <span className="capitalize">{source}</span>
-                                {active && <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
-                            </button>
-                        ))}
-                    </div>
-                )}
+              )}
             </div>
           </div>
         </div>
@@ -292,32 +292,32 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center space-x-2 text-xs font-mono text-gray-500 border-l border-white/10 pl-4">
-                <span className={tradingMode === 'scalping' ? 'text-blue-400' : ''}>SCALPING</span>
-                <span>|</span>
-                <span className={tradingMode === 'long' ? 'text-purple-400' : ''}>LONG</span>
+              <span className={tradingMode === 'scalping' ? 'text-blue-400' : ''}>SCALPING</span>
+              <span>|</span>
+              <span className={tradingMode === 'long' ? 'text-purple-400' : ''}>LONG</span>
             </div>
           </div>
 
           <div className="flex items-center space-x-3 relative">
-             <button
-                onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-xs font-bold hover:ring-2 hover:ring-white/20 transition-all"
-             >
-                AD
-             </button>
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-xs font-bold hover:ring-2 hover:ring-white/20 transition-all"
+            >
+              AD
+            </button>
 
-             {/* Profile Dropdown */}
-             {showProfileMenu && (
-                <div className="absolute top-10 right-0 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-2 z-50" data-aos="fade-down">
-                    <div className="px-4 py-2 border-b border-white/5 mb-2">
-                        <p className="text-sm font-bold text-white">Admin User</p>
-                        <p className="text-xs text-gray-500">admin@aitrade.pro</p>
-                    </div>
-                    <button onClick={handleSignOut} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 flex items-center">
-                        <LogOut className="w-4 h-4 mr-2" /> Sign Out
-                    </button>
+            {/* Profile Dropdown */}
+            {showProfileMenu && (
+              <div className="absolute top-10 right-0 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-2 z-50" data-aos="fade-down">
+                <div className="px-4 py-2 border-b border-white/5 mb-2">
+                  <p className="text-sm font-bold text-white">Admin User</p>
+                  <p className="text-xs text-gray-500">admin@aitrade.pro</p>
                 </div>
-             )}
+                <button onClick={handleSignOut} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-white/5 flex items-center">
+                  <LogOut className="w-4 h-4 mr-2" /> Sign Out
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
@@ -327,13 +327,12 @@ export default function DashboardPage() {
               key={idx}
               data-aos="fade-up"
               data-aos-delay="50"
-              className={`flex ${ msg.role === 'user' ? 'justify-end' : 'justify-start' } `}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} `}
             >
-              <div className={`max - w - [85 %] lg: max - w - [70 %] rounded - 2xl p - 5 ${
-    msg.role === 'user'
-        ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-        : 'bg-[#1a1a1a] border border-white/5 text-gray-200 shadow-xl'
-} `}>
+              <div className={`max - w - [85 %] lg: max - w - [70 %] rounded - 2xl p - 5 ${msg.role === 'user'
+                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                : 'bg-[#1a1a1a] border border-white/5 text-gray-200 shadow-xl'
+                } `}>
                 {msg.image && (
                   <img src={msg.image} alt="Analysis" className="max-w-full h-auto rounded-lg mb-4 border border-white/10" />
                 )}
@@ -344,10 +343,10 @@ export default function DashboardPage() {
                   <ReactMarkdown
                     className="prose prose-invert prose-sm max-w-none"
                     components={{
-                      p: ({node, ...props}) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
-                      strong: ({node, ...props}) => <span className="font-bold text-blue-300" {...props} />,
-                      ul: ({node, ...props}) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
-                      li: ({node, ...props}) => <li className="text-gray-300" {...props} />
+                      p: ({ node, ...props }) => <p className="mb-2 last:mb-0 leading-relaxed" {...props} />,
+                      strong: ({ node, ...props }) => <span className="font-bold text-blue-300" {...props} />,
+                      ul: ({ node, ...props }) => <ul className="list-disc pl-4 mb-2 space-y-1" {...props} />,
+                      li: ({ node, ...props }) => <li className="text-gray-300" {...props} />
                     }}
                   >
                     {msg.content}
@@ -381,14 +380,14 @@ export default function DashboardPage() {
                   <div className="h-4 w-px bg-white/10 mx-2" />
                   <button
                     onClick={() => setTechAnalysisEnabled(!techAnalysisEnabled)}
-                    className={`p - 2 rounded - lg transition - colors ${ techAnalysisEnabled ? 'text-blue-400 bg-blue-500/10' : 'text-gray-400 hover:text-white' } `}
+                    className={`p - 2 rounded - lg transition - colors ${techAnalysisEnabled ? 'text-blue-400 bg-blue-500/10' : 'text-gray-400 hover:text-white'} `}
                     title="Toggle Tech Analysis"
                   >
                     <Activity className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setEnableNews(!enableNews)}
-                    className={`p - 2 rounded - lg transition - colors ${ enableNews ? 'text-green-400 bg-green-500/10' : 'text-gray-400 hover:text-white' } `}
+                    className={`p - 2 rounded - lg transition - colors ${enableNews ? 'text-green-400 bg-green-500/10' : 'text-gray-400 hover:text-white'} `}
                     title="Toggle News"
                   >
                     <Globe className="w-4 h-4" />
@@ -409,7 +408,7 @@ export default function DashboardPage() {
                       handleSend();
                     }
                   }}
-                  placeholder={`Ask AI(${ tradingMode } mode)...`}
+                  placeholder={`Ask AI(${tradingMode} mode)...`}
                   className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-gray-500 resize-none max-h-48 py-3 px-3 min-h-[60px]"
                   rows={1}
                 />
@@ -478,11 +477,10 @@ export default function DashboardPage() {
                     <button
                       key={m.id}
                       onClick={() => setSelectedModel(m.id)}
-                      className={`text - left px - 4 py - 3 rounded - xl border transition - all ${
-    selectedModel === m.id
-        ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-        : 'bg-[#0a0a0a] border-white/10 text-gray-300 hover:border-white/30'
-} `}
+                      className={`text - left px - 4 py - 3 rounded - xl border transition - all ${selectedModel === m.id
+                        ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                        : 'bg-[#0a0a0a] border-white/10 text-gray-300 hover:border-white/30'
+                        } `}
                     >
                       <div className="font-medium truncate">{m.name}</div>
                       <div className="text-xs opacity-60 truncate">{m.id}</div>
@@ -515,4 +513,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-```
