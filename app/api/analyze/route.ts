@@ -134,7 +134,8 @@ export async function POST(req: Request) {
         const data = await response.json();
 
         if (data.error) {
-            throw new Error(data.error.message || 'OpenRouter API Error');
+            console.error("OpenRouter API Error Details:", JSON.stringify(data.error, null, 2));
+            throw new Error(data.error.message || 'Provider returned error');
         }
 
         const resultText = data.choices[0].message.content;
