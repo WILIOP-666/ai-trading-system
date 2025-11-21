@@ -5,7 +5,8 @@ import {
   Send, Image as ImageIcon, Settings, Mic, PenTool,
   Brain, X, ChevronDown, Sparkles, Paperclip, Globe,
   LayoutDashboard, Newspaper, BarChart2, LogOut, User, Menu,
-  Zap, TrendingUp, Activity, Search, ChevronLeft, ChevronRight, Loader2
+  Zap, TrendingUp, Activity, Search, ChevronLeft, ChevronRight, Loader2,
+  Coins, DollarSign
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
@@ -31,23 +32,31 @@ type AIModel = {
   name: string;
 };
 
+const TRADING_PAIRS = {
+  Crypto: ['BTC/USD', 'ETH/USD', 'SOL/USD', 'XRP/USD', 'BNB/USD'],
+  Forex: ['XAU/USD', 'EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD'],
+  Indices: ['US30', 'NAS100', 'SPX500', 'GER40']
+};
+
 export default function DashboardPage() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     { role: 'assistant', content: "Hello! I'm your Advanced AI Trading Copilot. \n\nI can analyze charts, scan for patterns, and provide institutional-grade setups. Select your mode and let's trade!" }
   ]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSending, setIsSending] = useState(false); // New state for sending status
+  const [isSending, setIsSending] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Sidebar toggle state
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Analysis Configuration
   const [tradingMode, setTradingMode] = useState<'scalping' | 'long'>('scalping');
   const [techAnalysisEnabled, setTechAnalysisEnabled] = useState(true);
   const [enableNews, setEnableNews] = useState(false);
+  const [selectedPair, setSelectedPair] = useState<string>('');
+  const [showPairSelector, setShowPairSelector] = useState(false);
   const [newsSources, setNewsSources] = useState({
     investing: true,
     forexfactory: true,
@@ -63,6 +72,7 @@ export default function DashboardPage() {
     { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus' },
     { id: 'mistral/mistral-large', name: 'Mistral Large' },
   ]);
+  const [modelSearch, setModelSearch] = useState('');
 
   const [systemPrompt, setSystemPrompt] = useState("You are a professional crypto & forex trader. Analyze charts with precision.");
   const [reasoningEffort, setReasoningEffort] = useState<'low' | 'medium' | 'high'>('medium');
@@ -98,7 +108,8 @@ export default function DashboardPage() {
           setAvailableModels(prev => {
             const existingIds = new Set(prev.map(p => p.id));
             const newModels = models.filter((m: any) => !existingIds.has(m.id));
-            return [...prev, ...newModels.slice(0, 20)];
+            // Sort alphabetically
+            return [...prev, ...newModels].sort((a, b) => a.name.localeCompare(b.name));
           });
         }
       } catch (e) {
@@ -135,12 +146,18 @@ export default function DashboardPage() {
   const handleSend = async () => {
     if ((!input.trim() && !image) || isLoading) return;
 
-    const userMsg: Message = { role: 'user', content: input, image: image || undefined };
+    // Construct message with pair context if selected
+    let finalContent = input;
+    if (selectedPair) {
+      finalContent = `[ANALYSIS FOR: ${selectedPair}] ${input}`;
+    }
+
+    const userMsg: Message = { role: 'user', content: finalContent, image: image || undefined };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setImage(null);
     setIsLoading(true);
-    setIsSending(true); // Start sending indication
+    setIsSending(true);
 
     // Prepare active news sources list
     const activeSources = Object.entries(newsSources)
@@ -158,7 +175,7 @@ export default function DashboardPage() {
         });
       }
 
-      setIsSending(false); // Message sent, now waiting for AI
+      setIsSending(false);
 
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -193,6 +210,11 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
+  const filteredModels = availableModels.filter(m =>
+    m.name.toLowerCase().includes(modelSearch.toLowerCase()) ||
+    m.id.toLowerCase().includes(modelSearch.toLowerCase())
+  );
+
   return (
     <div className="flex min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-blue-500/30 overflow-hidden">
 
@@ -213,7 +235,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Toggle Button for Mobile / Collapsed State */}
           {!isSidebarOpen && (
             <div className="flex justify-center mt-4 hidden lg:flex">
               <button onClick={() => setIsSidebarOpen(true)} className="p-2 hover:bg-white/5 rounded-lg text-gray-400">
@@ -241,12 +262,10 @@ export default function DashboardPage() {
             )}
           </nav>
 
-          {/* Analysis Control Panel in Sidebar */}
           {isSidebarOpen && (
             <div className="mt-8 px-4 animate-fade-in">
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Analysis Tools</h3>
 
-              {/* Trading Mode */}
               <div className="bg-[#1a1a1a] rounded-xl p-1 flex mb-4 border border-white/5">
                 <button
                   onClick={() => setTradingMode('scalping')}
@@ -262,7 +281,6 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              {/* Tech Analysis Toggle */}
               <div className="flex items-center justify-between mb-4 p-2 rounded-lg hover:bg-white/5 transition-colors">
                 <span className="text-sm text-gray-300 flex items-center"><Activity className="w-4 h-4 mr-2 text-blue-400" /> Tech Analysis</span>
                 <button
@@ -273,7 +291,6 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              {/* News Sources */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-gray-500 uppercase">News Sources</span>
@@ -297,15 +314,12 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-
-        {/* Logout removed from sidebar as requested */}
       </aside>
 
       <main className="flex-1 flex flex-col relative h-screen overflow-hidden">
 
         <header className="h-16 border-b border-white/5 bg-[#0a0a0a]/50 backdrop-blur-md flex items-center justify-between px-6 z-40">
           <div className="flex items-center space-x-4">
-            {/* Mobile Menu Toggle */}
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden p-2 text-gray-400">
               <Menu className="w-6 h-6" />
             </button>
@@ -320,6 +334,12 @@ export default function DashboardPage() {
               <span className={tradingMode === 'scalping' ? 'text-blue-400' : ''}>SCALPING</span>
               <span>|</span>
               <span className={tradingMode === 'long' ? 'text-purple-400' : ''}>LONG</span>
+              {selectedPair && (
+                <>
+                  <span>|</span>
+                  <span className="text-yellow-400 font-bold">{selectedPair}</span>
+                </>
+              )}
             </div>
           </div>
 
@@ -331,7 +351,6 @@ export default function DashboardPage() {
               AD
             </button>
 
-            {/* Profile Dropdown */}
             {showProfileMenu && (
               <div className="absolute top-10 right-0 w-48 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl py-2 z-50" data-aos="fade-down">
                 <div className="px-4 py-2 border-b border-white/5 mb-2">
@@ -381,7 +400,6 @@ export default function DashboardPage() {
             </div>
           ))}
 
-          {/* AI Typing / Loading Indicator */}
           {isLoading && (
             <div className="flex justify-start" data-aos="fade-up">
               <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl p-4 flex items-center space-x-3 shadow-xl">
@@ -419,6 +437,51 @@ export default function DashboardPage() {
                     <Paperclip className="w-4 h-4" />
                   </button>
                   <div className="h-4 w-px bg-white/10 mx-2" />
+
+                  {/* Pair Selector Toggle */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowPairSelector(!showPairSelector)}
+                      className={`p-2 rounded-lg transition-colors ${selectedPair ? 'text-yellow-400 bg-yellow-500/10' : 'text-gray-400 hover:text-white'}`}
+                      title="Select Pair"
+                    >
+                      <Coins className="w-4 h-4" />
+                    </button>
+
+                    {showPairSelector && (
+                      <div className="absolute bottom-12 left-0 w-64 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl p-2 z-50 animate-fade-in">
+                        <div className="text-xs font-bold text-gray-500 px-2 py-1">SELECT PAIR</div>
+                        <div className="max-h-60 overflow-y-auto space-y-2">
+                          {Object.entries(TRADING_PAIRS).map(([category, pairs]) => (
+                            <div key={category}>
+                              <div className="text-[10px] text-blue-400 px-2 mt-2 mb-1 uppercase">{category}</div>
+                              <div className="grid grid-cols-2 gap-1">
+                                {pairs.map(pair => (
+                                  <button
+                                    key={pair}
+                                    onClick={() => {
+                                      setSelectedPair(pair);
+                                      setShowPairSelector(false);
+                                    }}
+                                    className={`text-xs py-1.5 px-2 rounded hover:bg-white/10 text-left ${selectedPair === pair ? 'bg-blue-600 text-white' : 'text-gray-300'}`}
+                                  >
+                                    {pair}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => { setSelectedPair(''); setShowPairSelector(false); }}
+                            className="w-full text-xs py-2 text-red-400 hover:bg-white/5 rounded mt-2 border-t border-white/5"
+                          >
+                            Clear Selection
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <button
                     onClick={() => setTechAnalysisEnabled(!techAnalysisEnabled)}
                     className={`p-2 rounded-lg transition-colors ${techAnalysisEnabled ? 'text-blue-400 bg-blue-500/10' : 'text-gray-400 hover:text-white'}`}
@@ -515,8 +578,21 @@ export default function DashboardPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-400 mb-2">AI Model</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {availableModels.map((m) => (
+
+                {/* Model Search */}
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-3 w-4 h-4 text-gray-500" />
+                  <input
+                    type="text"
+                    value={modelSearch}
+                    onChange={(e) => setModelSearch(e.target.value)}
+                    placeholder="Search models (e.g. gpt, claude, gemini)..."
+                    className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl pl-10 pr-4 py-2 text-sm text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-800">
+                  {filteredModels.map((m) => (
                     <button
                       key={m.id}
                       onClick={() => setSelectedModel(m.id)}
@@ -529,6 +605,9 @@ export default function DashboardPage() {
                       <div className="text-xs opacity-60 truncate">{m.id}</div>
                     </button>
                   ))}
+                  {filteredModels.length === 0 && (
+                    <div className="col-span-2 text-center text-gray-500 py-4">No models found matching "{modelSearch}"</div>
+                  )}
                 </div>
               </div>
 
