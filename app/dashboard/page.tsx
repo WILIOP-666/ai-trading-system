@@ -5,7 +5,7 @@ import {
   Send, Image as ImageIcon, Settings, Mic, PenTool,
   Brain, X, ChevronDown, Sparkles, Paperclip, Globe,
   LayoutDashboard, Newspaper, BarChart2, LogOut, User, Menu,
-  Zap, TrendingUp, Activity, Search
+  Zap, TrendingUp, Activity, Search, ChevronLeft, ChevronRight, Loader2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
@@ -37,10 +37,12 @@ export default function DashboardPage() {
     { role: 'assistant', content: "Hello! I'm your Advanced AI Trading Copilot. \n\nI can analyze charts, scan for patterns, and provide institutional-grade setups. Select your mode and let's trade!" }
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false); // New state for sending status
   const [apiKey, setApiKey] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Sidebar toggle state
 
   // Analysis Configuration
   const [tradingMode, setTradingMode] = useState<'scalping' | 'long'>('scalping');
@@ -108,7 +110,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const handleSaveSettings = () => {
     localStorage.setItem('openrouter_key', apiKey);
@@ -138,6 +140,7 @@ export default function DashboardPage() {
     setInput('');
     setImage(null);
     setIsLoading(true);
+    setIsSending(true); // Start sending indication
 
     // Prepare active news sources list
     const activeSources = Object.entries(newsSources)
@@ -154,6 +157,8 @@ export default function DashboardPage() {
           model_used: selectedModel
         });
       }
+
+      setIsSending(false); // Message sent, now waiting for AI
 
       const response = await fetch('/api/analyze', {
         method: 'POST',
@@ -179,6 +184,7 @@ export default function DashboardPage() {
       setMessages(prev => [...prev, { role: 'assistant', content: `Error: ${error.message}. Please check your API Key in settings.` }]);
     } finally {
       setIsLoading(false);
+      setIsSending(false);
     }
   };
 
@@ -190,108 +196,127 @@ export default function DashboardPage() {
   return (
     <div className="flex min-h-screen bg-[#0a0a0a] text-white font-sans selection:bg-blue-500/30 overflow-hidden">
 
-      <aside className="w-20 lg:w-64 bg-[#111]/80 backdrop-blur-xl border-r border-white/5 flex flex-col justify-between z-50 transition-all duration-300">
+      {/* Sidebar */}
+      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-[#111]/80 backdrop-blur-xl border-r border-white/5 flex flex-col justify-between z-50 transition-all duration-300 fixed lg:relative h-full`}>
         <div>
-          <div className="h-20 flex items-center justify-center lg:justify-start lg:px-6 border-b border-white/5">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Brain className="w-6 h-6 text-white" />
+          <div className="h-20 flex items-center justify-between px-4 border-b border-white/5">
+            <div className={`flex items-center ${!isSidebarOpen && 'justify-center w-full'}`}>
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20 shrink-0">
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              {isSidebarOpen && <span className="ml-3 font-bold text-xl tracking-tight animate-fade-in">AI Trade<span className="text-blue-400">Pro</span></span>}
             </div>
-            <span className="hidden lg:block ml-3 font-bold text-xl tracking-tight">AI Trade<span className="text-blue-400">Pro</span></span>
+            {isSidebarOpen && (
+              <button onClick={() => setIsSidebarOpen(false)} className="p-1 hover:bg-white/5 rounded-lg text-gray-400 hidden lg:block">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
           </div>
 
+          {/* Toggle Button for Mobile / Collapsed State */}
+          {!isSidebarOpen && (
+            <div className="flex justify-center mt-4 hidden lg:flex">
+              <button onClick={() => setIsSidebarOpen(true)} className="p-2 hover:bg-white/5 rounded-lg text-gray-400">
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+
           <nav className="mt-8 px-2 lg:px-4 space-y-2">
-            <button className="w-full flex items-center p-3 rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20 transition-all group">
-              <LayoutDashboard className="w-5 h-5 lg:mr-3" />
-              <span className="hidden lg:block font-medium">Dashboard</span>
+            <button className="w-full flex items-center p-3 rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20 transition-all group justify-center lg:justify-start">
+              <LayoutDashboard className="w-5 h-5 shrink-0" />
+              {isSidebarOpen && <span className="ml-3 font-medium animate-fade-in">Dashboard</span>}
             </button>
 
-            <Link href="/news" className="w-full flex items-center p-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-all group">
-              <Newspaper className="w-5 h-5 lg:mr-3 group-hover:scale-110 transition-transform" />
-              <span className="hidden lg:block font-medium">Market News</span>
+            <Link href="/news" className="w-full flex items-center p-3 rounded-xl text-gray-400 hover:bg-white/5 hover:text-white transition-all group justify-center lg:justify-start">
+              <Newspaper className="w-5 h-5 shrink-0 group-hover:scale-110 transition-transform" />
+              {isSidebarOpen && <span className="ml-3 font-medium animate-fade-in">Market News</span>}
             </Link>
 
             {isAdmin && (
-              <Link href="/admin" className="w-full flex items-center p-3 rounded-xl text-purple-400 hover:bg-purple-500/10 transition-all group">
-                <User className="w-5 h-5 lg:mr-3" />
-                <span className="hidden lg:block font-medium">Admin Panel</span>
+              <Link href="/admin" className="w-full flex items-center p-3 rounded-xl text-purple-400 hover:bg-purple-500/10 transition-all group justify-center lg:justify-start">
+                <User className="w-5 h-5 shrink-0" />
+                {isSidebarOpen && <span className="ml-3 font-medium animate-fade-in">Admin Panel</span>}
               </Link>
             )}
           </nav>
 
           {/* Analysis Control Panel in Sidebar */}
-          <div className="mt-8 px-4 hidden lg:block">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Analysis Tools</h3>
+          {isSidebarOpen && (
+            <div className="mt-8 px-4 animate-fade-in">
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">Analysis Tools</h3>
 
-            {/* Trading Mode */}
-            <div className="bg-[#1a1a1a] rounded-xl p-1 flex mb-4 border border-white/5">
-              <button
-                onClick={() => setTradingMode('scalping')}
-                className={`flex - 1 py - 2 text - xs font - medium rounded - lg transition - all ${tradingMode === 'scalping' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'} `}
-              >
-                Scalping
-              </button>
-              <button
-                onClick={() => setTradingMode('long')}
-                className={`flex - 1 py - 2 text - xs font - medium rounded - lg transition - all ${tradingMode === 'long' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'} `}
-              >
-                Long
-              </button>
-            </div>
-
-            {/* Tech Analysis Toggle */}
-            <div className="flex items-center justify-between mb-4 p-2 rounded-lg hover:bg-white/5 transition-colors">
-              <span className="text-sm text-gray-300 flex items-center"><Activity className="w-4 h-4 mr-2 text-blue-400" /> Tech Analysis</span>
-              <button
-                onClick={() => setTechAnalysisEnabled(!techAnalysisEnabled)}
-                className={`w - 10 h - 5 rounded - full relative transition - colors ${techAnalysisEnabled ? 'bg-blue-600' : 'bg-gray-700'} `}
-              >
-                <div className={`w - 3 h - 3 bg - white rounded - full absolute top - 1 transition - all ${techAnalysisEnabled ? 'left-6' : 'left-1'} `} />
-              </button>
-            </div>
-
-            {/* News Sources */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-gray-500 uppercase">News Sources</span>
-                <button onClick={() => setEnableNews(!enableNews)} className={`text - xs ${enableNews ? 'text-green-400' : 'text-gray-500'} `}>{enableNews ? 'ON' : 'OFF'}</button>
+              {/* Trading Mode */}
+              <div className="bg-[#1a1a1a] rounded-xl p-1 flex mb-4 border border-white/5">
+                <button
+                  onClick={() => setTradingMode('scalping')}
+                  className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${tradingMode === 'scalping' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Scalping
+                </button>
+                <button
+                  onClick={() => setTradingMode('long')}
+                  className={`flex-1 py-2 text-xs font-medium rounded-lg transition-all ${tradingMode === 'long' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                >
+                  Long
+                </button>
               </div>
-              {enableNews && (
-                <div className="space-y-1 pl-2 border-l-2 border-white/10">
-                  {Object.entries(newsSources).map(([source, active]) => (
-                    <button
-                      key={source}
-                      onClick={() => toggleNewsSource(source as any)}
-                      className={`w - full text - left text - xs py - 1 px - 2 rounded flex items - center justify - between ${active ? 'text-blue-300 bg-blue-500/10' : 'text-gray-500 hover:text-gray-300'} `}
-                    >
-                      <span className="capitalize">{source}</span>
-                      {active && <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
-                    </button>
-                  ))}
+
+              {/* Tech Analysis Toggle */}
+              <div className="flex items-center justify-between mb-4 p-2 rounded-lg hover:bg-white/5 transition-colors">
+                <span className="text-sm text-gray-300 flex items-center"><Activity className="w-4 h-4 mr-2 text-blue-400" /> Tech Analysis</span>
+                <button
+                  onClick={() => setTechAnalysisEnabled(!techAnalysisEnabled)}
+                  className={`w-10 h-5 rounded-full relative transition-colors ${techAnalysisEnabled ? 'bg-blue-600' : 'bg-gray-700'}`}
+                >
+                  <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all ${techAnalysisEnabled ? 'left-6' : 'left-1'}`} />
+                </button>
+              </div>
+
+              {/* News Sources */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-gray-500 uppercase">News Sources</span>
+                  <button onClick={() => setEnableNews(!enableNews)} className={`text-xs ${enableNews ? 'text-green-400' : 'text-gray-500'}`}>{enableNews ? 'ON' : 'OFF'}</button>
                 </div>
-              )}
+                {enableNews && (
+                  <div className="space-y-1 pl-2 border-l-2 border-white/10">
+                    {Object.entries(newsSources).map(([source, active]) => (
+                      <button
+                        key={source}
+                        onClick={() => toggleNewsSource(source as any)}
+                        className={`w-full text-left text-xs py-1 px-2 rounded flex items-center justify-between ${active ? 'text-blue-300 bg-blue-500/10' : 'text-gray-500 hover:text-gray-300'}`}
+                      >
+                        <span className="capitalize">{source}</span>
+                        {active && <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
-        <div className="p-4 border-t border-white/5">
-          <button onClick={handleSignOut} className="w-full flex items-center p-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-all">
-            <LogOut className="w-5 h-5 lg:mr-3" />
-            <span className="hidden lg:block font-medium">Sign Out</span>
-          </button>
-        </div>
+        {/* Logout removed from sidebar as requested */}
       </aside>
 
       <main className="flex-1 flex flex-col relative h-screen overflow-hidden">
 
         <header className="h-16 border-b border-white/5 bg-[#0a0a0a]/50 backdrop-blur-md flex items-center justify-between px-6 z-40">
           <div className="flex items-center space-x-4">
+            {/* Mobile Menu Toggle */}
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="lg:hidden p-2 text-gray-400">
+              <Menu className="w-6 h-6" />
+            </button>
+
             <div className="flex items-center bg-[#1a1a1a] rounded-full px-4 py-1.5 border border-white/10 hover:border-blue-500/50 transition-colors cursor-pointer" onClick={() => setShowSettings(true)}>
               <Sparkles className="w-4 h-4 text-blue-400 mr-2" />
               <span className="text-sm font-medium text-gray-200 truncate max-w-[150px]">{availableModels.find(m => m.id === selectedModel)?.name || 'Select Model'}</span>
               <ChevronDown className="w-3 h-3 text-gray-500 ml-2" />
             </div>
 
-            <div className="flex items-center space-x-2 text-xs font-mono text-gray-500 border-l border-white/10 pl-4">
+            <div className="hidden md:flex items-center space-x-2 text-xs font-mono text-gray-500 border-l border-white/10 pl-4">
               <span className={tradingMode === 'scalping' ? 'text-blue-400' : ''}>SCALPING</span>
               <span>|</span>
               <span className={tradingMode === 'long' ? 'text-purple-400' : ''}>LONG</span>
@@ -327,12 +352,12 @@ export default function DashboardPage() {
               key={idx}
               data-aos="fade-up"
               data-aos-delay="50"
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} `}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`max - w - [85 %] lg: max - w - [70 %] rounded - 2xl p - 5 ${msg.role === 'user'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
-                : 'bg-[#1a1a1a] border border-white/5 text-gray-200 shadow-xl'
-                } `}>
+              <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-5 ${msg.role === 'user'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                  : 'bg-[#1a1a1a] border border-white/5 text-gray-200 shadow-xl'
+                }`}>
                 {msg.image && (
                   <img src={msg.image} alt="Analysis" className="max-w-full h-auto rounded-lg mb-4 border border-white/10" />
                 )}
@@ -355,6 +380,22 @@ export default function DashboardPage() {
               </div>
             </div>
           ))}
+
+          {/* AI Typing / Loading Indicator */}
+          {isLoading && (
+            <div className="flex justify-start" data-aos="fade-up">
+              <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl p-4 flex items-center space-x-3 shadow-xl">
+                <div className="relative flex items-center justify-center">
+                  <Brain className="w-5 h-5 text-blue-400 animate-pulse" />
+                  <div className="absolute inset-0 bg-blue-500/20 rounded-full blur animate-ping"></div>
+                </div>
+                <span className="text-sm text-gray-400 font-mono animate-pulse">
+                  {isSending ? 'Sending request...' : 'AI is analyzing market data...'}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
         </div>
 
@@ -380,21 +421,22 @@ export default function DashboardPage() {
                   <div className="h-4 w-px bg-white/10 mx-2" />
                   <button
                     onClick={() => setTechAnalysisEnabled(!techAnalysisEnabled)}
-                    className={`p - 2 rounded - lg transition - colors ${techAnalysisEnabled ? 'text-blue-400 bg-blue-500/10' : 'text-gray-400 hover:text-white'} `}
+                    className={`p-2 rounded-lg transition-colors ${techAnalysisEnabled ? 'text-blue-400 bg-blue-500/10' : 'text-gray-400 hover:text-white'}`}
                     title="Toggle Tech Analysis"
                   >
                     <Activity className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setEnableNews(!enableNews)}
-                    className={`p - 2 rounded - lg transition - colors ${enableNews ? 'text-green-400 bg-green-500/10' : 'text-gray-400 hover:text-white'} `}
+                    className={`p-2 rounded-lg transition-colors ${enableNews ? 'text-green-400 bg-green-500/10' : 'text-gray-400 hover:text-white'}`}
                     title="Toggle News"
                   >
                     <Globe className="w-4 h-4" />
                   </button>
                 </div>
-                <div className="text-xs text-gray-600 font-mono">
-                  {messages.length} msgs • {tradingMode.toUpperCase()} MODE
+                <div className="text-xs text-gray-600 font-mono flex items-center">
+                  {isLoading && <Loader2 className="w-3 h-3 mr-2 animate-spin text-blue-400" />}
+                  {messages.length} msgs • {tradingMode.toUpperCase()}
                 </div>
               </div>
 
@@ -408,16 +450,17 @@ export default function DashboardPage() {
                       handleSend();
                     }
                   }}
-                  placeholder={`Ask AI(${tradingMode} mode)...`}
-                  className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-gray-500 resize-none max-h-48 py-3 px-3 min-h-[60px]"
+                  placeholder={isLoading ? "AI is processing..." : `Ask AI (${tradingMode} mode)...`}
+                  disabled={isLoading}
+                  className="w-full bg-transparent border-none focus:ring-0 text-white placeholder-gray-500 resize-none max-h-48 py-3 px-3 min-h-[60px] disabled:opacity-50 disabled:cursor-not-allowed"
                   rows={1}
                 />
                 <button
                   onClick={handleSend}
                   disabled={isLoading || (!input.trim() && !image)}
-                  className="mb-2 mr-2 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-600/20"
+                  className="mb-2 mr-2 p-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center"
                 >
-                  <Send className="w-5 h-5" />
+                  {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                 </button>
               </div>
 
@@ -477,10 +520,10 @@ export default function DashboardPage() {
                     <button
                       key={m.id}
                       onClick={() => setSelectedModel(m.id)}
-                      className={`text - left px - 4 py - 3 rounded - xl border transition - all ${selectedModel === m.id
-                        ? 'bg-blue-600/20 border-blue-500 text-blue-400'
-                        : 'bg-[#0a0a0a] border-white/10 text-gray-300 hover:border-white/30'
-                        } `}
+                      className={`text-left px-4 py-3 rounded-xl border transition-all ${selectedModel === m.id
+                          ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                          : 'bg-[#0a0a0a] border-white/10 text-gray-300 hover:border-white/30'
+                        }`}
                     >
                       <div className="font-medium truncate">{m.name}</div>
                       <div className="text-xs opacity-60 truncate">{m.id}</div>
@@ -496,6 +539,24 @@ export default function DashboardPage() {
                   onChange={(e) => setSystemPrompt(e.target.value)}
                   className="w-full bg-[#0a0a0a] border border-white/10 rounded-xl px-4 py-3 text-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all min-h-[100px]"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-400 mb-2">Reasoning Effort</label>
+                <div className="flex space-x-4 bg-[#0a0a0a] p-1 rounded-xl border border-white/10">
+                  {['low', 'medium', 'high'].map((level) => (
+                    <button
+                      key={level}
+                      onClick={() => setReasoningEffort(level as any)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium capitalize transition-all ${reasoningEffort === level
+                          ? 'bg-blue-600 text-white shadow-lg'
+                          : 'text-gray-400 hover:text-white'
+                        }`}
+                    >
+                      {level}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
